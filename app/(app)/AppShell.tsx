@@ -59,7 +59,7 @@ export default function AppShell({
           </span>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{user.full_name}</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
           {user.site && (
             <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>
               {SITE_LABELS[user.site] ?? user.site}

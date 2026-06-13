@@ -4,9 +4,9 @@ export type SiteT = 'coolaroo' | 'altona_north'
 export interface AppUser {
   id: string
   email: string
-  full_name: string
+  name: string
   role: UserRole
   site: SiteT | null
-  is_active: boolean
+  active: boolean
   created_at: string
 }

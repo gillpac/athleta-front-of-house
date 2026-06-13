@@ -19,10 +19,10 @@ export async function POST() {
   )
 
   const testUsers = [
-    { email: 'receptionist@athleta.test', password: 'Test1234!', full_name: 'Chiara Russo',    role: 'receptionist', site: 'coolaroo' },
-    { email: 'sitelead@athleta.test',     password: 'Test1234!', full_name: 'Mustafa Demir',   role: 'site_lead',    site: 'altona_north' },
-    { email: 'admin@athleta.test',        password: 'Test1234!', full_name: 'Admin User',       role: 'admin',        site: null },
-    { email: 'management@athleta.test',   password: 'Test1234!', full_name: 'Management User',  role: 'management',   site: null },
+    { email: 'receptionist@athleta.test', password: 'Test1234!', name: 'Chiara Russo',    role: 'receptionist', site: 'coolaroo' },
+    { email: 'sitelead@athleta.test',     password: 'Test1234!', name: 'Mustafa Demir',   role: 'site_lead',    site: 'altona_north' },
+    { email: 'admin@athleta.test',        password: 'Test1234!', name: 'Admin User',       role: 'admin',        site: null },
+    { email: 'management@athleta.test',   password: 'Test1234!', name: 'Management User',  role: 'management',   site: null },
   ]
 
   const results: Array<{ email: string; status: string; error?: string }> = []
@@ -54,11 +54,11 @@ export async function POST() {
     // Upsert app_users row
     await supabase.from('app_users').upsert({
       id: authId,
-      full_name: u.full_name,
+      name: u.name,
       email: u.email,
       role: u.role,
       site: u.site,
-      is_active: true,
+      active: true,
     })
   }
 

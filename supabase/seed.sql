@@ -38,7 +38,7 @@ on conflict (id) do nothing;
 -- The /api/seed route handles this automatically.
 -- ============================================================
 
--- insert into app_users (id, full_name, email, role, site, is_active) values
+-- insert into app_users (id, name, email, role, site, active) values
 --   ('<auth-uuid-receptionist>', 'Chiara Russo',    'receptionist@athleta.test', 'receptionist', 'coolaroo',     true),
 --   ('<auth-uuid-sitelead>',     'Mustafa Demir',   'sitelead@athleta.test',     'site_lead',    'altona_north', true),
 --   ('<auth-uuid-admin>',        'Admin User',      'admin@athleta.test',        'admin',         null,          true),

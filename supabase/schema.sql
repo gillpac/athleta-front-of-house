@@ -9,17 +9,17 @@ create type cancel_outcome as enum ('departed','saved','paused');
 
 create table app_users (
   id uuid primary key references auth.users(id),
-  full_name text not null,
+  name text not null,
   email text not null unique,
   role user_role not null,
   site site_t,                          -- null for admin/management (see both)
-  is_active boolean not null default true,
+  active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 create table programmes (
   id uuid primary key default gen_random_uuid(),
-  full_name text not null,                   -- Kinder Gym, Beginners Principles, Level 1...
+  name text not null,                   -- Kinder Gym, Beginners Principles, Level 1...
   min_age numeric, max_age numeric,     -- for the age auto-suggest rule
   sort int not null default 0,
   active boolean not null default true
