@@ -52,7 +52,7 @@ export async function POST() {
     }
 
     // Upsert app_users row
-    await supabase.from('app_users').upsert({
+    const { error: upsertError } = await supabase.from('app_users').upsert({
       id: authId,
       name: u.name,
       email: u.email,
@@ -60,6 +60,9 @@ export async function POST() {
       site: u.site,
       active: true,
     })
+    if (upsertError) {
+      results.push({ email: u.email, status: 'app_users upsert failed', error: upsertError.message })
+    }
   }
 
   return NextResponse.json({ ok: true, results })

@@ -38,8 +38,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Authenticated users don't need /login
-  if (user && pathname === '/login') {
+  // Authenticated users don't need /login (unless flagged with an error)
+  const hasError = request.nextUrl.searchParams.has('error')
+  if (user && pathname === '/login' && !hasError) {
     const todayUrl = request.nextUrl.clone()
     todayUrl.pathname = '/today'
     return NextResponse.redirect(todayUrl)
