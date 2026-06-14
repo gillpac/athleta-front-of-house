@@ -444,8 +444,10 @@ const STATUS_FILTERS = ['all', 'new', 'booked', 'noshow', 'won', 'nurture'] as c
 const STATUS_FILTER_LABELS: Record<string, string> = { all: 'All', new: 'New', booked: 'Booked', noshow: 'No-show', won: 'Enrolled', nurture: 'Nurture' }
 
 export default function LeadsClient({ user, leads, guardians, activities, programmes }: Props) {
+  const isAdmin = user.role === 'admin' || user.role === 'management'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [siteFilter, setSiteFilter] = useState<string>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const guardianMap = useMemo(() => {
@@ -458,6 +460,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
     const q = search.toLowerCase()
     return leads.filter(l => {
       if (statusFilter !== 'all' && l.status !== statusFilter) return false
+      if (siteFilter !== 'all' && l.site !== siteFilter) return false
       if (!q) return true
       const g = guardianMap[l.guardian_id]
       const childName = `${l.child_first} ${l.child_last}`.toLowerCase()
@@ -465,7 +468,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
       const phone = g?.phone ?? ''
       return childName.includes(q) || guardianName.includes(q) || phone.includes(q)
     })
-  }, [leads, statusFilter, search, guardianMap])
+  }, [leads, statusFilter, siteFilter, search, guardianMap])
 
   const selectedLead = selectedId ? leads.find(l => l.id === selectedId) : null
   const siblings = selectedLead
@@ -483,8 +486,8 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
         style={{ width: '100%', padding: '10px 14px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box', background: C.WHITE }}
       />
 
-      {/* Status filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: isAdmin ? 8 : 16, flexWrap: 'wrap' }}>
         {STATUS_FILTERS.map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
             style={{
@@ -498,6 +501,21 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
         ))}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
       </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
+            <button key={s} onClick={() => setSiteFilter(s)}
+              style={{
+                padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: siteFilter === s ? C.INK : C.WHITE,
+                color: siteFilter === s ? C.WHITE : C.INK,
+                border: `1px solid ${siteFilter === s ? C.INK : C.BORDER}`,
+              }}>
+              {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Lead rows */}
       {filtered.length === 0 && (
@@ -528,9 +546,11 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
                 {lead.trial_at && <span style={{ marginLeft: 10 }}>Trial: {fmtDateTime(lead.trial_at)}</span>}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: C.MUTED, whiteSpace: 'nowrap' }}>
-              {lead.site === 'coolaroo' ? 'Coo' : 'AN'}
-            </div>
+            {isAdmin && (
+              <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap' }}>
+                {lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+              </div>
+            )}
           </div>
         )
       })}
