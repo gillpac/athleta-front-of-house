@@ -31,8 +31,8 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Unauthenticated users can only access /login and /api routes
-  if (!user && pathname !== '/login' && !pathname.startsWith('/api/')) {
+  // Unauthenticated users can only access /login, /cancel and /api routes
+  if (!user && pathname !== '/login' && !pathname.startsWith('/api/') && !pathname.startsWith('/cancel')) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     return NextResponse.redirect(loginUrl)
