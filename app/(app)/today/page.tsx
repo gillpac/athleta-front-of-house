@@ -1,216 +1,181 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import TodayClient from './TodayClient'
-import type { TodayData } from './TodayClient'
 import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
+import TodayClient from './TodayClient'
 
 export default async function TodayPage() {
   const supabase = await createClient()
 
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: appUser } = await supabase
     .from('app_users')
     .select('*')
-    .eq('id', authUser.id)
+    .eq('id', user.id)
     .single<AppUser>()
 
   if (!appUser) redirect('/login?error=no_profile')
 
-  const site = appUser.site
-  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
 
-  // Date helpers
-  const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-
-  const tomorrow = new Date(now)
+  const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
   // End of current week (Saturday)
-  const dayOfWeek = now.getDay()
-  const daysUntilSat = dayOfWeek === 6 ? 0 : 6 - dayOfWeek
-  const endOfWeek = new Date(now)
-  endOfWeek.setDate(now.getDate() + daysUntilSat)
+  const dow = today.getDay() // 0=Sun
+  const daysToSat = dow === 0 ? 6 : 6 - dow
+  const endOfWeek = new Date(today)
+  endOfWeek.setDate(today.getDate() + daysToSat)
   const endOfWeekStr = endOfWeek.toISOString().split('T')[0]
 
   const dayAfterTomorrow = new Date(tomorrow)
   dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
   const dayAfterTomorrowStr = dayAfterTomorrow.toISOString().split('T')[0]
 
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  // First day of current month
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  const siteFilter = isAdmin ? null : site
+  // Site filter
+  const siteFilter = appUser.site
 
-  // Fetch target
+  // Build leads query
+  let leadsQuery = supabase
+    .from('leads')
+    .select('*, guardians(*)')
+    .is('archived_at', null)
+    .in('status', ['new', 'booked', 'noshow', 'won'])
+
+  if (siteFilter) {
+    leadsQuery = leadsQuery.eq('site', siteFilter)
+  }
+
+  const { data: allLeads } = await leadsQuery.order('received_at', { ascending: true })
+
+  const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
+
+  const newLeads = leads.filter(l => l.status === 'new')
+  const todayTrials = leads.filter(l =>
+    l.status === 'booked' &&
+    l.trial_at != null &&
+    l.trial_at.startsWith(todayStr)
+  )
+  const noShows = leads.filter(l => l.status === 'noshow')
+  const tomorrowTrials = leads.filter(l =>
+    l.status === 'booked' &&
+    l.trial_at != null &&
+    l.trial_at.startsWith(tomorrowStr)
+  )
+  const thisWeekTrials = leads.filter(l =>
+    l.status === 'booked' &&
+    l.trial_at != null &&
+    l.trial_at.slice(0, 10) >= dayAfterTomorrowStr &&
+    l.trial_at.slice(0, 10) <= endOfWeekStr
+  )
+  const unverifiedSales = leads.filter(l => l.status === 'won' && l.verified_at == null)
+
+  // Target
   let targetData: Target | null = null
   if (siteFilter) {
     const { data } = await supabase
       .from('targets')
       .select('*')
+      .eq('month', firstOfMonth)
       .eq('site', siteFilter)
-      .eq('month', monthStart)
-      .single<Target>()
-    targetData = data
-  } else {
-    const { data } = await supabase
-      .from('targets')
-      .select('*')
-      .eq('month', monthStart)
-      .limit(1)
       .single<Target>()
     targetData = data
   }
 
-  // Fetch new leads
-  let newLeadsQ = supabase
+  // Verified sales this month (for progress)
+  let verifiedQuery = supabase
     .from('leads')
-    .select('*')
-    .eq('status', 'new')
-    .is('archived_at', null)
-    .order('received_at', { ascending: true })
-  if (siteFilter) newLeadsQ = newLeadsQ.eq('site', siteFilter)
-  const { data: newLeadsRaw } = await newLeadsQ
-  const newLeads = (newLeadsRaw ?? []) as Lead[]
-
-  // Fetch today's trials
-  let todayTrialsQ = supabase
-    .from('leads')
-    .select('*')
-    .eq('status', 'booked')
-    .gte('trial_at', `${todayStr}T00:00:00`)
-    .lte('trial_at', `${todayStr}T23:59:59`)
-    .is('archived_at', null)
-    .order('trial_at', { ascending: true })
-  if (siteFilter) todayTrialsQ = todayTrialsQ.eq('site', siteFilter)
-  const { data: todayTrialsRaw } = await todayTrialsQ
-  const todayTrials = (todayTrialsRaw ?? []) as Lead[]
-
-  // Fetch no-shows
-  let noShowsQ = supabase
-    .from('leads')
-    .select('*')
-    .eq('status', 'noshow')
-    .is('archived_at', null)
-    .order('received_at', { ascending: false })
-  if (siteFilter) noShowsQ = noShowsQ.eq('site', siteFilter)
-  const { data: noShowsRaw } = await noShowsQ
-  const noShows = (noShowsRaw ?? []) as Lead[]
-
-  // Fetch tomorrow's trials
-  let tomorrowTrialsQ = supabase
-    .from('leads')
-    .select('*')
-    .eq('status', 'booked')
-    .gte('trial_at', `${tomorrowStr}T00:00:00`)
-    .lte('trial_at', `${tomorrowStr}T23:59:59`)
-    .is('archived_at', null)
-    .order('trial_at', { ascending: true })
-  if (siteFilter) tomorrowTrialsQ = tomorrowTrialsQ.eq('site', siteFilter)
-  const { data: tomorrowTrialsRaw } = await tomorrowTrialsQ
-  const tomorrowTrials = (tomorrowTrialsRaw ?? []) as Lead[]
-
-  // Fetch this week's trials
-  let weekTrialsQ = supabase
-    .from('leads')
-    .select('*')
-    .eq('status', 'booked')
-    .gte('trial_at', `${dayAfterTomorrowStr}T00:00:00`)
-    .lte('trial_at', `${endOfWeekStr}T23:59:59`)
-    .is('archived_at', null)
-    .order('trial_at', { ascending: true })
-  if (siteFilter) weekTrialsQ = weekTrialsQ.eq('site', siteFilter)
-  const { data: weekTrialsRaw } = await weekTrialsQ
-  const weekTrials = (weekTrialsRaw ?? []) as Lead[]
-
-  // Fetch unverified sales
-  let unverifiedSalesQ = supabase
-    .from('leads')
-    .select('*')
+    .select('id')
     .eq('status', 'won')
-    .is('verified_at', null)
+    .not('verified_at', 'is', null)
+    .gte('sold_at', firstOfMonth + 'T00:00:00.000Z')
     .is('archived_at', null)
-    .order('sold_at', { ascending: false })
-  if (siteFilter) unverifiedSalesQ = unverifiedSalesQ.eq('site', siteFilter)
-  const { data: unverifiedSalesRaw } = await unverifiedSalesQ
-  const unverifiedSales = (unverifiedSalesRaw ?? []) as Lead[]
 
-  // Fetch checklist items
-  let checklistQ = supabase
+  if (siteFilter) {
+    verifiedQuery = verifiedQuery.eq('site', siteFilter)
+  }
+
+  const { data: verifiedSales } = await verifiedQuery
+  const verifiedCount = verifiedSales?.length ?? 0
+
+  // Blockout days for month
+  let blockoutQuery = supabase
+    .from('blockout_days')
+    .select('*')
+    .gte('day', todayStr)
+    .lte('day', endOfMonth)
+
+  if (siteFilter) {
+    blockoutQuery = blockoutQuery.eq('site', siteFilter)
+  }
+
+  const { data: blockoutDays } = await blockoutQuery
+
+  // Checklist items
+  let checklistQuery = supabase
     .from('checklist_items')
     .select('*')
     .eq('active', true)
-    .order('sort', { ascending: true })
-  if (siteFilter) checklistQ = checklistQ.or(`site.eq.${siteFilter},site.is.null`)
-  const { data: checklistItemsRaw } = await checklistQ
-  const checklistItems = (checklistItemsRaw ?? []) as ChecklistItem[]
+    .order('sort')
 
-  // Fetch today's completions
-  const { data: checklistCompletionsRaw } = await supabase
+  if (siteFilter) {
+    checklistQuery = checklistQuery.or(`site.is.null,site.eq.${siteFilter}`)
+  } else {
+    checklistQuery = checklistQuery.is('site', null)
+  }
+
+  const { data: checklistItems } = await checklistQuery
+
+  // Today's completions for current user
+  const { data: completions } = await supabase
     .from('checklist_completions')
     .select('*')
-    .eq('user_id', authUser.id)
+    .eq('user_id', appUser.id)
     .eq('day', todayStr)
-  const checklistCompletions = (checklistCompletionsRaw ?? []) as ChecklistCompletion[]
 
-  // Fetch blockout days
-  let blockoutQ = supabase.from('blockout_days').select('*')
-  if (siteFilter) blockoutQ = blockoutQ.eq('site', siteFilter)
-  const { data: blockoutDaysRaw } = await blockoutQ
-  const blockoutDays = (blockoutDaysRaw ?? []) as BlockoutDay[]
-
-  // Collect all leads
-  const allLeads = [...newLeads, ...todayTrials, ...noShows, ...tomorrowTrials, ...weekTrials, ...unverifiedSales]
-  const guardianIds = Array.from(new Set(allLeads.map(l => l.guardian_id)))
-  const leadIds = allLeads.map(l => l.id)
-
-  // Fetch guardians
-  let guardians: Guardian[] = []
-  if (guardianIds.length > 0) {
-    const { data: guardiansRaw } = await supabase
-      .from('guardians')
-      .select('*')
-      .in('id', guardianIds)
-    guardians = (guardiansRaw ?? []) as Guardian[]
-  }
-
-  // Fetch activities
-  let activities: { id: string; lead_id: string; user_id: string | null; kind: string; body: string; created_at: string }[] = []
-  if (leadIds.length > 0) {
-    const { data: activitiesRaw } = await supabase
+  // Activities for today's trials (to determine arrived state)
+  const trialLeadIds = todayTrials.map(l => l.id)
+  let activitiesData: Array<{ lead_id: string; kind: string; body: string; created_at: string }> = []
+  if (trialLeadIds.length > 0) {
+    const { data: acts } = await supabase
       .from('activities')
-      .select('id, lead_id, user_id, kind, body, created_at')
-      .in('lead_id', leadIds)
-      .order('created_at', { ascending: true })
-    activities = activitiesRaw ?? []
+      .select('lead_id, kind, body, created_at')
+      .in('lead_id', trialLeadIds)
+      .order('created_at', { ascending: false })
+    activitiesData = acts ?? []
   }
 
-  // Fetch programmes
-  const { data: programmesRaw } = await supabase
+  // Programmes
+  const { data: programmes } = await supabase
     .from('programmes')
     .select('*')
     .eq('active', true)
-    .order('sort', { ascending: true })
-  const programmes = (programmesRaw ?? []) as Programme[]
+    .order('sort')
 
-  const data: TodayData = {
-    user: appUser,
-    target: targetData,
-    newLeads,
-    todayTrials,
-    noShows,
-    tomorrowTrials,
-    weekTrials,
-    unverifiedSales,
-    checklistItems,
-    checklistCompletions,
-    blockoutDays,
-    guardians,
-    programmes,
-    activities,
-  }
-
-  return <TodayClient data={data} />
+  return (
+    <TodayClient
+      appUser={appUser}
+      newLeads={newLeads}
+      todayTrials={todayTrials}
+      noShows={noShows}
+      tomorrowTrials={tomorrowTrials}
+      thisWeekTrials={thisWeekTrials}
+      unverifiedSales={unverifiedSales}
+      target={targetData}
+      verifiedCount={verifiedCount}
+      blockoutDays={(blockoutDays ?? []) as BlockoutDay[]}
+      checklistItems={(checklistItems ?? []) as ChecklistItem[]}
+      completions={(completions ?? []) as ChecklistCompletion[]}
+      todayActivities={activitiesData}
+      programmes={(programmes ?? []) as Programme[]}
+      todayStr={todayStr}
+    />
+  )
 }
