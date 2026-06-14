@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import type { AppUser, Lead, Guardian, Activity, Programme } from '@/types'
 import {
   logCallOutcome, bookTrial, markNoShow, makeSale,
-  markDidntEnrol, sendConfirmation, verifyLead, addNote, archiveLead,
+  markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead,
 } from './actions'
 
 const C = {
@@ -194,6 +194,9 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
   const [showBooking, setShowBooking] = useState(false)
   const [showEnrol, setShowEnrol] = useState(false)
   const [showLoss, setShowLoss] = useState(false)
+  const [lossMode, setLossMode] = useState<'nurture' | 'lost'>('nurture')
+  const [lossReason, setLossReason] = useState('Price')
+  const [lossFollowup, setLossFollowup] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })
   const [showCallMenu, setShowCallMenu] = useState(false)
 
   const isAdmin = user.role === 'admin' || user.role === 'management'
@@ -225,6 +228,50 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
     <>
       {showBooking && <BookingModal leadId={lead.id} userId={user.id} programmes={programmes} onClose={() => setShowBooking(false)} />}
       {showEnrol && <EnrolModal leadId={lead.id} userId={user.id} formReceived={lead.form_received} onClose={() => setShowEnrol(false)} />}
+      {showLoss && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: C.WHITE, width: 360, padding: 24, border: `1px solid ${C.BORDER}` }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Didn&apos;t enrol — what now?</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {(['nurture', 'lost'] as const).map(m => (
+                <button key={m} onClick={() => setLossMode(m)} style={{
+                  flex: 1, padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: lossMode === m ? C.INK : C.WHITE,
+                  color: lossMode === m ? C.WHITE : C.MUTED,
+                  border: `1px solid ${lossMode === m ? C.INK : C.BORDER}`,
+                }}>
+                  {m === 'nurture' ? '🌱 Nurture' : '✗ Lost'}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: lossMode === 'nurture' ? C.MUTED : C.RED, marginBottom: 10 }}>
+              {lossMode === 'nurture' ? 'Follow up later — stays in system with a future date' : 'Dead lead — no further follow-up'}
+            </div>
+            <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Reason</label>
+            <select value={lossReason} onChange={e => setLossReason(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }}>
+              {LOSS_REASONS.map(r => <option key={r}>{r}</option>)}
+            </select>
+            {lossMode === 'nurture' && (
+              <>
+                <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Follow-up date</label>
+                <input type="date" value={lossFollowup} onChange={e => setLossFollowup(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }} />
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowLoss(false)} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button onClick={() => {
+                setShowLoss(false)
+                if (lossMode === 'nurture') startTransition(() => markDidntEnrol(lead.id, lossReason, user.id, lossFollowup))
+                else startTransition(() => markLost(lead.id, lossReason, user.id))
+              }} style={{ flex: 1, padding: '10px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                {lossMode === 'nurture' ? 'Move to nurture' : 'Mark lost'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={onClose} />
       <div style={{
@@ -378,24 +425,10 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
                 style={{ padding: '9px 14px', background: C.GREEN, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                 💰 Make Sale
               </button>
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setShowLoss(v => !v)}
-                  style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
-                  Didn&apos;t enrol ▾
-                </button>
-                {showLoss && (
-                  <div style={{ position: 'absolute', bottom: '100%', left: 0, background: C.WHITE, border: `1px solid ${C.BORDER}`, zIndex: 10, minWidth: 180 }}>
-                    {LOSS_REASONS.map(r => (
-                      <button key={r} onClick={() => {
-                        setShowLoss(false)
-                        startTransition(() => markDidntEnrol(lead.id, r, user.id))
-                      }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}>
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button onClick={() => setShowLoss(true)}
+                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
+                Didn&apos;t enrol
+              </button>
               <button onClick={() => { if (confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, user.id)) }}
                 style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
                 No-show
