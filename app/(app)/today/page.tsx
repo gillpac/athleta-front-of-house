@@ -1,155 +1,216 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import TodayClient from './TodayClient'
-import type {
-  AppUser,
-  Lead,
-  Guardian,
-  Programme,
-  Target,
-  BlockoutDay,
-  ChecklistItem,
-} from '@/types'
-
-export const dynamic = 'force-dynamic'
-
-export interface LeadWithGuardian extends Lead {
-  guardian: Guardian | null
-}
-
-/** Start (inclusive) and end (exclusive) of the local day for an offset in days. */
-function dayBounds(offset: number) {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() + offset)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
-  return { start: start.toISOString(), end: end.toISOString() }
-}
+import type { TodayData } from './TodayClient'
+import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
 
 export default async function TodayPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) redirect('/login')
 
   const { data: appUser } = await supabase
     .from('app_users')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', authUser.id)
     .single<AppUser>()
+
   if (!appUser) redirect('/login?error=no_profile')
 
-  // Admin / management see both sites; receptionists & site leads see their own.
-  const seesAllSites = appUser.role === 'admin' || appUser.role === 'management'
   const site = appUser.site
-  const scoped = site && !seesAllSites
+  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
 
-  const leadSelect = '*, guardian:guardians(*)'
+  // Date helpers
+  const now = new Date()
+  const todayStr = now.toISOString().split('T')[0]
 
-  // ---- Target for the current month ----
-  const monthStart = new Date()
-  monthStart.setDate(1)
-  monthStart.setHours(0, 0, 0, 0)
-  const monthKey = monthStart.toISOString().slice(0, 10)
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
-  let targetQuery = supabase.from('targets').select('*').eq('month', monthKey)
-  if (scoped) targetQuery = targetQuery.eq('site', site)
-  const { data: targetRows } = await targetQuery
-  const target: Target | null = ((targetRows?.[0] as Target) ?? null)
+  // End of current week (Saturday)
+  const dayOfWeek = now.getDay()
+  const daysUntilSat = dayOfWeek === 6 ? 0 : 6 - dayOfWeek
+  const endOfWeek = new Date(now)
+  endOfWeek.setDate(now.getDate() + daysUntilSat)
+  const endOfWeekStr = endOfWeek.toISOString().split('T')[0]
 
-  // ---- Date windows ----
-  const today = dayBounds(0)
-  const tomorrow = dayBounds(1)
-  const weekStart = dayBounds(2).start
-  const weekEndDate = new Date()
-  weekEndDate.setHours(23, 59, 59, 999)
-  const dow = weekEndDate.getDay() // 0 Sun .. 6 Sat
-  const daysToSat = (6 - dow + 7) % 7
-  weekEndDate.setDate(weekEndDate.getDate() + daysToSat)
-  const weekEnd = weekEndDate.toISOString()
+  const dayAfterTomorrow = new Date(tomorrow)
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
+  const dayAfterTomorrowStr = dayAfterTomorrow.toISOString().split('T')[0]
 
-  // ---- Lead queries ----
-  let qNew = supabase.from('leads').select(leadSelect).eq('status', 'new').is('archived_at', null)
-  let qToday = supabase.from('leads').select(leadSelect).eq('status', 'booked').is('archived_at', null).gte('trial_at', today.start).lt('trial_at', today.end)
-  let qNoShow = supabase.from('leads').select(leadSelect).eq('status', 'noshow').is('archived_at', null)
-  let qTomorrow = supabase.from('leads').select(leadSelect).eq('status', 'booked').is('archived_at', null).gte('trial_at', tomorrow.start).lt('trial_at', tomorrow.end)
-  let qWeek = supabase.from('leads').select(leadSelect).eq('status', 'booked').is('archived_at', null).gte('trial_at', weekStart).lte('trial_at', weekEnd)
-  let qSales = supabase.from('leads').select(leadSelect).eq('status', 'won').is('archived_at', null).is('verified_at', null)
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
-  if (scoped) {
-    qNew = qNew.eq('site', site)
-    qToday = qToday.eq('site', site)
-    qNoShow = qNoShow.eq('site', site)
-    qTomorrow = qTomorrow.eq('site', site)
-    qWeek = qWeek.eq('site', site)
-    qSales = qSales.eq('site', site)
+  const siteFilter = isAdmin ? null : site
+
+  // Fetch target
+  let targetData: Target | null = null
+  if (siteFilter) {
+    const { data } = await supabase
+      .from('targets')
+      .select('*')
+      .eq('site', siteFilter)
+      .eq('month', monthStart)
+      .single<Target>()
+    targetData = data
+  } else {
+    const { data } = await supabase
+      .from('targets')
+      .select('*')
+      .eq('month', monthStart)
+      .limit(1)
+      .single<Target>()
+    targetData = data
   }
 
-  const [
-    { data: newLeadsRaw },
-    { data: todayTrialsRaw },
-    { data: noShowsRaw },
-    { data: tomorrowTrialsRaw },
-    { data: weekTrialsRaw },
-    { data: unverifiedSalesRaw },
-  ] = await Promise.all([
-    qNew.order('received_at', { ascending: true }),
-    qToday.order('trial_at', { ascending: true }),
-    qNoShow.order('received_at', { ascending: true }),
-    qTomorrow.order('trial_at', { ascending: true }),
-    qWeek.order('trial_at', { ascending: true }),
-    qSales.order('sold_at', { ascending: true }),
-  ])
+  // Fetch new leads
+  let newLeadsQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'new')
+    .is('archived_at', null)
+    .order('received_at', { ascending: true })
+  if (siteFilter) newLeadsQ = newLeadsQ.eq('site', siteFilter)
+  const { data: newLeadsRaw } = await newLeadsQ
+  const newLeads = (newLeadsRaw ?? []) as Lead[]
 
-  // ---- Programmes ----
+  // Fetch today's trials
+  let todayTrialsQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'booked')
+    .gte('trial_at', `${todayStr}T00:00:00`)
+    .lte('trial_at', `${todayStr}T23:59:59`)
+    .is('archived_at', null)
+    .order('trial_at', { ascending: true })
+  if (siteFilter) todayTrialsQ = todayTrialsQ.eq('site', siteFilter)
+  const { data: todayTrialsRaw } = await todayTrialsQ
+  const todayTrials = (todayTrialsRaw ?? []) as Lead[]
+
+  // Fetch no-shows
+  let noShowsQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'noshow')
+    .is('archived_at', null)
+    .order('received_at', { ascending: false })
+  if (siteFilter) noShowsQ = noShowsQ.eq('site', siteFilter)
+  const { data: noShowsRaw } = await noShowsQ
+  const noShows = (noShowsRaw ?? []) as Lead[]
+
+  // Fetch tomorrow's trials
+  let tomorrowTrialsQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'booked')
+    .gte('trial_at', `${tomorrowStr}T00:00:00`)
+    .lte('trial_at', `${tomorrowStr}T23:59:59`)
+    .is('archived_at', null)
+    .order('trial_at', { ascending: true })
+  if (siteFilter) tomorrowTrialsQ = tomorrowTrialsQ.eq('site', siteFilter)
+  const { data: tomorrowTrialsRaw } = await tomorrowTrialsQ
+  const tomorrowTrials = (tomorrowTrialsRaw ?? []) as Lead[]
+
+  // Fetch this week's trials
+  let weekTrialsQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'booked')
+    .gte('trial_at', `${dayAfterTomorrowStr}T00:00:00`)
+    .lte('trial_at', `${endOfWeekStr}T23:59:59`)
+    .is('archived_at', null)
+    .order('trial_at', { ascending: true })
+  if (siteFilter) weekTrialsQ = weekTrialsQ.eq('site', siteFilter)
+  const { data: weekTrialsRaw } = await weekTrialsQ
+  const weekTrials = (weekTrialsRaw ?? []) as Lead[]
+
+  // Fetch unverified sales
+  let unverifiedSalesQ = supabase
+    .from('leads')
+    .select('*')
+    .eq('status', 'won')
+    .is('verified_at', null)
+    .is('archived_at', null)
+    .order('sold_at', { ascending: false })
+  if (siteFilter) unverifiedSalesQ = unverifiedSalesQ.eq('site', siteFilter)
+  const { data: unverifiedSalesRaw } = await unverifiedSalesQ
+  const unverifiedSales = (unverifiedSalesRaw ?? []) as Lead[]
+
+  // Fetch checklist items
+  let checklistQ = supabase
+    .from('checklist_items')
+    .select('*')
+    .eq('active', true)
+    .order('sort', { ascending: true })
+  if (siteFilter) checklistQ = checklistQ.or(`site.eq.${siteFilter},site.is.null`)
+  const { data: checklistItemsRaw } = await checklistQ
+  const checklistItems = (checklistItemsRaw ?? []) as ChecklistItem[]
+
+  // Fetch today's completions
+  const { data: checklistCompletionsRaw } = await supabase
+    .from('checklist_completions')
+    .select('*')
+    .eq('user_id', authUser.id)
+    .eq('day', todayStr)
+  const checklistCompletions = (checklistCompletionsRaw ?? []) as ChecklistCompletion[]
+
+  // Fetch blockout days
+  let blockoutQ = supabase.from('blockout_days').select('*')
+  if (siteFilter) blockoutQ = blockoutQ.eq('site', siteFilter)
+  const { data: blockoutDaysRaw } = await blockoutQ
+  const blockoutDays = (blockoutDaysRaw ?? []) as BlockoutDay[]
+
+  // Collect all leads
+  const allLeads = [...newLeads, ...todayTrials, ...noShows, ...tomorrowTrials, ...weekTrials, ...unverifiedSales]
+  const guardianIds = Array.from(new Set(allLeads.map(l => l.guardian_id)))
+  const leadIds = allLeads.map(l => l.id)
+
+  // Fetch guardians
+  let guardians: Guardian[] = []
+  if (guardianIds.length > 0) {
+    const { data: guardiansRaw } = await supabase
+      .from('guardians')
+      .select('*')
+      .in('id', guardianIds)
+    guardians = (guardiansRaw ?? []) as Guardian[]
+  }
+
+  // Fetch activities
+  let activities: { id: string; lead_id: string; user_id: string | null; kind: string; body: string; created_at: string }[] = []
+  if (leadIds.length > 0) {
+    const { data: activitiesRaw } = await supabase
+      .from('activities')
+      .select('id, lead_id, user_id, kind, body, created_at')
+      .in('lead_id', leadIds)
+      .order('created_at', { ascending: true })
+    activities = activitiesRaw ?? []
+  }
+
+  // Fetch programmes
   const { data: programmesRaw } = await supabase
     .from('programmes')
     .select('*')
     .eq('active', true)
     .order('sort', { ascending: true })
+  const programmes = (programmesRaw ?? []) as Programme[]
 
-  // ---- Checklist items for this site (null = all sites) ----
-  let checklistQuery = supabase
-    .from('checklist_items')
-    .select('*')
-    .eq('active', true)
-    .order('sort', { ascending: true })
-  if (scoped) checklistQuery = checklistQuery.or(`site.is.null,site.eq.${site}`)
-  const { data: checklistRaw } = await checklistQuery
+  const data: TodayData = {
+    user: appUser,
+    target: targetData,
+    newLeads,
+    todayTrials,
+    noShows,
+    tomorrowTrials,
+    weekTrials,
+    unverifiedSales,
+    checklistItems,
+    checklistCompletions,
+    blockoutDays,
+    guardians,
+    programmes,
+    activities,
+  }
 
-  // ---- Today's completions for this user ----
-  const todayDate = new Date().toISOString().slice(0, 10)
-  const { data: completionsRaw } = await supabase
-    .from('checklist_completions')
-    .select('item_id')
-    .eq('user_id', appUser.id)
-    .eq('day', todayDate)
-  const completedItemIds = (completionsRaw ?? []).map(
-    (c: { item_id: string }) => c.item_id
-  )
-
-  // ---- Blockout days ----
-  let blockoutQuery = supabase.from('blockout_days').select('*')
-  if (scoped) blockoutQuery = blockoutQuery.eq('site', site)
-  const { data: blockoutRaw } = await blockoutQuery
-
-  return (
-    <TodayClient
-      user={appUser}
-      target={target}
-      newLeads={(newLeadsRaw ?? []) as unknown as LeadWithGuardian[]}
-      todayTrials={(todayTrialsRaw ?? []) as unknown as LeadWithGuardian[]}
-      noShows={(noShowsRaw ?? []) as unknown as LeadWithGuardian[]}
-      tomorrowTrials={(tomorrowTrialsRaw ?? []) as unknown as LeadWithGuardian[]}
-      weekTrials={(weekTrialsRaw ?? []) as unknown as LeadWithGuardian[]}
-      unverifiedSales={(unverifiedSalesRaw ?? []) as unknown as LeadWithGuardian[]}
-      programmes={(programmesRaw ?? []) as Programme[]}
-      checklistItems={(checklistRaw ?? []) as ChecklistItem[]}
-      completedItemIds={completedItemIds}
-      blockoutDays={(blockoutRaw ?? []) as BlockoutDay[]}
-    />
-  )
+  return <TodayClient data={data} />
 }
