@@ -1,12 +1,28 @@
-export default function CancellationsPage() {
-  return (
-    <div>
-      <h1 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 8px 0' }}>
-        Cancellations
-      </h1>
-      <p style={{ color: '#84776A', fontSize: '14px', margin: 0 }}>
-        Pending and verified cancellations will appear here.
-      </p>
-    </div>
-  )
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import CancellationsClient from './CancellationsClient'
+import type { AppUser, Cancellation } from '@/types'
+
+export default async function CancellationsPage() {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) redirect('/login')
+
+  const { data: appUser } = await supabase.from('app_users').select('*').eq('id', authUser.id).single<AppUser>()
+  if (!appUser) redirect('/login?error=no_profile')
+
+  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
+  const siteFilter = isAdmin ? null : appUser.site
+
+  let q = supabase
+    .from('cancellations')
+    .select('*')
+    .is('archived_at', null)
+    .order('created_at', { ascending: false })
+  if (siteFilter) q = q.eq('site', siteFilter)
+
+  const { data: raw } = await q
+  const cancellations = (raw ?? []) as Cancellation[]
+
+  return <CancellationsClient user={appUser} cancellations={cancellations} />
 }
