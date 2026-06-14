@@ -67,15 +67,26 @@ export async function makeSale(leadId: string, firstClassDate: string, firstClas
   revalidate()
 }
 
-export async function markDidntEnrol(leadId: string, reason: string, userId: string) {
+export async function markDidntEnrol(leadId: string, reason: string, userId: string, followupDate?: string) {
   const supabase = await createClient()
   const before = await getLead(supabase, leadId)
-  const nurtureDate = new Date()
-  nurtureDate.setDate(nurtureDate.getDate() + 7)
-  const updates = { status: 'nurture', lost_reason: reason, nurture_followup_at: nurtureDate.toISOString().split('T')[0], next_action_at: null, prev_state: { status: before?.status, trial_at: before?.trial_at } }
+  const followup = followupDate ? new Date(followupDate + 'T12:00:00') : new Date()
+  if (!followupDate) followup.setDate(followup.getDate() + 7)
+  const followupStr = followup.toISOString().split('T')[0]
+  const updates = { status: 'nurture', lost_reason: reason, nurture_followup_at: followupStr, next_action_at: followup.toISOString(), prev_state: { status: before?.status, trial_at: before?.trial_at } }
   await supabase.from('leads').update(updates).eq('id', leadId)
-  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Didn't enrol — ${reason}. Moved to nurture` })
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupStr})` })
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_didnt_enrol', before, after: { ...before, ...updates } })
+  revalidate()
+}
+
+export async function markLost(leadId: string, reason: string, userId: string) {
+  const supabase = await createClient()
+  const before = await getLead(supabase, leadId)
+  const updates = { status: 'lost', lost_reason: reason, next_action_at: null, prev_state: { status: before?.status, trial_at: before?.trial_at } }
+  await supabase.from('leads').update(updates).eq('id', leadId)
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Marked lost — ${reason}` })
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_lost', before, after: { ...before, ...updates } })
   revalidate()
 }
 

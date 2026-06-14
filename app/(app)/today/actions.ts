@@ -83,17 +83,33 @@ export async function makeSale(leadId: string, firstClassDate: string, firstClas
   revalidatePath('/today')
 }
 
-export async function markDidntEnrol(leadId: string, reason: string, userId: string) {
+export async function markDidntEnrol(leadId: string, reason: string, userId: string, followupDate?: string) {
   const supabase = await createClient()
-  const followup = new Date(); followup.setDate(followup.getDate() + 7)
+  const followup = followupDate ? new Date(followupDate + 'T12:00:00') : new Date()
+  if (!followupDate) followup.setDate(followup.getDate() + 7)
   const followupStr = followup.toISOString().split('T')[0]
   await supabase.from('leads').update({
     status: 'nurture',
+    lost_reason: reason,
     nurture_followup_at: followupStr,
     next_action_at: followup.toISOString(),
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'status', `Didn't enrol — ${reason}. Moved to nurture`)
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'didnt_enrol', after: { reason } })
+  await insertActivity(leadId, userId, 'status', `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupStr})`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'didnt_enrol', after: { reason, followupStr } })
+  revalidatePath('/today')
+}
+
+export async function markLost(leadId: string, reason: string, userId: string) {
+  const supabase = await createClient()
+  const { data: before } = await supabase.from('leads').select('*').eq('id', leadId).single()
+  await supabase.from('leads').update({
+    status: 'lost',
+    lost_reason: reason,
+    next_action_at: null,
+    prev_state: { status: before?.status, trial_at: before?.trial_at },
+  }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'status', `Marked lost — ${reason}`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_lost', before, after: { status: 'lost', reason } })
   revalidatePath('/today')
 }
 

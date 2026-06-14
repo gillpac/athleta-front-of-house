@@ -10,6 +10,7 @@ import {
   markNoShow,
   makeSale,
   markDidntEnrol,
+  markLost,
   sendConfirmation,
   verifySale,
   toggleChecklist,
@@ -250,30 +251,72 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string) => void; onClose: (
 }
 
 // ─── LossPicker ───────────────────────────────────────────────────────────────
-function LossPicker({ onConfirm, onCancel }: { onConfirm: (r: string) => void; onCancel: () => void }) {
+function LossPicker({ onNurture, onLost, onCancel }: {
+  onNurture: (reason: string, followupDate: string) => void
+  onLost: (reason: string) => void
+  onCancel: () => void
+}) {
+  const [mode, setMode] = useState<'nurture' | 'lost'>('nurture')
   const [reason, setReason] = useState('Price')
   const [other, setOther] = useState('')
-  const final = reason === 'Other' ? (other.trim() ? `Other — ${other.trim()}` : '') : reason
+  const minDate = new Date(); minDate.setDate(minDate.getDate() + 1)
+  const defaultFollowup = new Date(); defaultFollowup.setDate(defaultFollowup.getDate() + 7)
+  const [followupDate, setFollowupDate] = useState(defaultFollowup.toISOString().split('T')[0])
+  const finalReason = reason === 'Other' ? (other.trim() ? `Other — ${other.trim()}` : '') : reason
+  const ok = !!finalReason && (mode === 'lost' || !!followupDate)
+
+  function confirm() {
+    if (!ok) return
+    if (mode === 'nurture') onNurture(finalReason, followupDate)
+    else onLost(finalReason)
+  }
+
   return (
-    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-      <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inp, padding: '4px 6px', fontSize: 11.5 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 4, padding: '10px 12px', marginTop: 6, maxWidth: 340 }}>
+      <div style={{ fontSize: 11, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Didn&apos;t enrol — what now?</div>
+      {/* Lost vs Nurture toggle */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+        {(['nurture', 'lost'] as const).map(m => (
+          <button key={m} onClick={() => setMode(m)} style={{
+            flex: 1, padding: '6px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+            background: mode === m ? C.ink : C.card,
+            color: mode === m ? '#fff' : C.muted,
+            border: `1px solid ${mode === m ? C.ink : C.line}`,
+          }}>
+            {m === 'nurture' ? '🌱 Nurture' : '✗ Lost'}
+          </button>
+        ))}
+      </div>
+      {mode === 'nurture' && (
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Follow up later — stays in system with a future date</div>
+      )}
+      {mode === 'lost' && (
+        <div style={{ fontSize: 11, color: C.red, marginBottom: 8 }}>Dead lead — requires a reason, no further follow-up</div>
+      )}
+      <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', marginBottom: 6 }}>
         <option>Price</option>
         <option>Timing / not ready</option>
-        <option>Day didn't suit</option>
+        <option>Day didn&apos;t suit</option>
         <option>Comparing options</option>
         <option>Other</option>
       </select>
       {reason === 'Other' && (
-        <input
-          value={other}
-          onChange={e => setOther(e.target.value)}
-          placeholder="what happened?"
-          style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: 130 }}
-        />
+        <input value={other} onChange={e => setOther(e.target.value)} placeholder="what happened?"
+          style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', marginBottom: 6, boxSizing: 'border-box' }} />
       )}
-      <Quiet onClick={() => final && onConfirm(final)}>confirm</Quiet>
-      <Quiet onClick={onCancel}>✕</Quiet>
-    </span>
+      {mode === 'nurture' && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, marginBottom: 3 }}>FOLLOW-UP DATE</div>
+          <input type="date" value={followupDate} min={minDate.toISOString().split('T')[0]}
+            onChange={e => setFollowupDate(e.target.value)}
+            style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', boxSizing: 'border-box' }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <Quiet onClick={onCancel}>Cancel</Quiet>
+        <Next onClick={confirm} disabled={!ok}>{mode === 'nurture' ? 'Move to nurture' : 'Mark lost'}</Next>
+      </div>
+    </div>
   )
 }
 
@@ -759,7 +802,11 @@ function TodayRow({ lead, userId, activities, onOpen, onOpenParent }: {
           {!arrivedDone
             ? <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>② outcome — after arrival</span>
             : lossFor
-              ? <LossPicker onConfirm={reason => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId)) }} onCancel={() => setLossFor(false)} />
+              ? <LossPicker
+                  onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
+                  onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
+                  onCancel={() => setLossFor(false)}
+                />
               : (
                 <>
                   <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>
