@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 // Only allow in non-production environments
 export async function POST() {
-  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SEED) {
+  if (process.env.VERCEL_ENV === 'production') {
     return NextResponse.json({ error: 'Not allowed in production' }, { status: 403 })
   }
 
