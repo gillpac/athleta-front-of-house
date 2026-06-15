@@ -503,7 +503,9 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
           <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {lead.form_received
               ? <span style={{ fontSize: 10.5, fontWeight: 700, color: LC.green, background: LC.greenBg, padding: '2px 8px', borderRadius: 3 }}>Jotform ✓</span>
-              : <span style={{ fontSize: 10.5, fontWeight: 600, color: LC.muted, background: LC.sand, padding: '2px 8px', borderRadius: 3 }}>Jotform pending</span>}
+              : lead.form_sent_at
+                ? <span style={{ fontSize: 10.5, fontWeight: 600, color: LC.yellow, background: LC.yellowBg, padding: '2px 8px', borderRadius: 3 }}>Jotform pending</span>
+                : null}
             {lead.status === 'won' && (lead.verified_at
               ? <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', background: LC.green, padding: '2px 8px', borderRadius: 3 }}>Sale verified ✓</span>
               : <span style={{ fontSize: 10.5, fontWeight: 600, color: LC.yellow, background: LC.yellowBg, padding: '2px 8px', borderRadius: 3 }}>Sale — pending admin</span>)}
@@ -519,7 +521,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             <Row label="Source" value={lead.source ?? '—'} />
             {lead.referrer_name && <Row label="Referred by" value={lead.referrer_name} />}
             {utmCampaign && <Row label="Campaign" value={utmCampaign} />}
-            <Row label="Jotform" value={lead.form_received ? '✓ Received' : '✗ Pending'} valueColor={lead.form_received ? C.GREEN : C.RED} />
+            <Row label="Jotform" value={lead.form_received ? '✓ Received' : lead.form_sent_at ? '⧗ Sent — awaiting return' : '— not yet sent'} valueColor={lead.form_received ? C.GREEN : lead.form_sent_at ? C.YELLOW : C.MUTED} />
           </Section>
 
           {guardian && (
@@ -729,6 +731,20 @@ function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes
 
 const STATUS_FILTERS = ['all', 'new', 'booked', 'noshow', 'won', 'nurture'] as const
 const STATUS_FILTER_LABELS: Record<string, string> = { all: 'All', new: 'New', booked: 'Booked', noshow: 'No-show', won: 'Enrolled', nurture: 'Nurture' }
+
+// Granular pre-trial sub-filters for 'new' status
+const PRE_TRIAL_FILTERS = [
+  { key: 'new_all', label: 'All new' },
+  { key: 'new_uncontacted', label: 'Not contacted' },
+  { key: 'new_contacted', label: 'Contacted — not booked' },
+]
+const POST_TRIAL_FILTERS = [
+  { key: 'booked', label: 'Booked for trial' },
+  { key: 'noshow', label: 'No-show' },
+  { key: 'won', label: 'Enrolled' },
+  { key: 'nurture', label: 'Nurture' },
+  { key: 'lost', label: 'Lost' },
+]
 const DATE_FILTERS = ['all', 'today', 'this_week', 'last_week', 'this_month', 'last_month', 'custom'] as const
 const DATE_FILTER_LABELS: Record<string, string> = { all: 'All dates', today: 'Today', this_week: 'This week', last_week: 'Last week', this_month: 'This month', last_month: 'Last month', custom: 'Custom range…' }
 
@@ -776,7 +792,10 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return leads.filter(l => {
-      if (statusFilter !== 'all' && l.status !== statusFilter) return false
+      if (statusFilter === 'new_all' && l.status !== 'new') return false
+      if (statusFilter === 'new_uncontacted' && !(l.status === 'new' && !l.contacted)) return false
+      if (statusFilter === 'new_contacted' && !(l.status === 'new' && l.contacted)) return false
+      if (statusFilter !== 'all' && !statusFilter.startsWith('new_') && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
       if (!isInDateRange(l.received_at, dateFilter, customFrom, customTo)) return false
       if (!q) return true
@@ -804,24 +823,37 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
         style={{ width: '100%', padding: '10px 14px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box', background: C.WHITE }}
       />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: isAdmin ? 8 : 16, flexWrap: 'wrap' }}>
-        {STATUS_FILTERS.map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            style={{
-              padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: statusFilter === s ? C.ORANGE : C.WHITE,
-              color: statusFilter === s ? C.WHITE : C.INK,
-              border: `1px solid ${statusFilter === s ? C.ORANGE : C.BORDER}`,
-            }}>
-            {STATUS_FILTER_LABELS[s]}
+      {/* Status filters — two rows */}
+      <div style={{ marginBottom: isAdmin ? 8 : 16 }}>
+        {/* Row 1: pre-trial (new leads) */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>New leads</span>
+          <button onClick={() => setStatusFilter('all')}
+            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === 'all' ? C.ORANGE : C.WHITE, color: statusFilter === 'all' ? C.WHITE : C.INK, border: `1px solid ${statusFilter === 'all' ? C.ORANGE : C.BORDER}` }}>
+            All
           </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
-        <button onClick={() => setShowAddModal(true)}
-          style={{ padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.ORANGE, color: C.WHITE, border: 'none' }}>
-          + Add lead
-        </button>
+          {PRE_TRIAL_FILTERS.map(f => (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.ORANGE : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.INK, border: `1px solid ${statusFilter === f.key ? C.ORANGE : C.BORDER}` }}>
+              {f.label}
+            </button>
+          ))}
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={() => setShowAddModal(true)}
+            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.ORANGE, color: C.WHITE, border: 'none' }}>
+            + Add lead
+          </button>
+        </div>
+        {/* Row 2: post-trial */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>Trials &amp; beyond</span>
+          {POST_TRIAL_FILTERS.map(f => (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.INK : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.MUTED, border: `1px solid ${statusFilter === f.key ? C.INK : C.BORDER}` }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
       {isAdmin && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
