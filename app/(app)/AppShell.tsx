@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import type { AppUser } from '@/types'
 
 const SITE_LABELS: Record<string, string> = {
@@ -33,6 +34,12 @@ export default function AppShell({
   const pathname = usePathname()
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(user.role))
 
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F6F3EE' }}>
       {/* Header */}
@@ -58,18 +65,23 @@ export default function AppShell({
             FRONT OF HOUSE
           </span>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
-          {user.site && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
             <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>
-              {SITE_LABELS[user.site] ?? user.site}
+              {user.site ? (SITE_LABELS[user.site] ?? user.site) : 'All sites'}
             </div>
-          )}
-          {!user.site && (
-            <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>
-              All sites
-            </div>
-          )}
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              fontSize: 11, fontWeight: 600, color: '#84776A', background: 'none',
+              border: '1px solid #3D3428', padding: '4px 10px', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Log out
+          </button>
         </div>
       </div>
 
