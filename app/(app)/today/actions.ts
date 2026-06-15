@@ -129,6 +129,8 @@ export async function markLost(leadId: string, reason: string, userId: string) {
 
 
 export async function sendConfirmation(leadId: string, userId: string) {
+  const _z = runtimeEnv('ZAPIER_EMAIL_WEBHOOK_URL') ?? ''
+  console.log('[sendConfirmation] runtime zapier value length:', _z.length, 'startsWithHttps:', _z.startsWith('https'))
   const supabase = await createClient()
   const admin = createAdminClient()
 
