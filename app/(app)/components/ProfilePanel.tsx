@@ -561,6 +561,8 @@ export function ProfilePanel({
   const extraFields = lead.enquiry_raw
     ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !PROFILE_KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
     : []
+  const utmSource = (lead.enquiry_raw?.utm_source as string | undefined) || lead.source || null
+  const utmMedium = lead.enquiry_raw?.utm_medium as string | undefined
   const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
 
   function handleCall(outcome: string, followUpAt?: string) {
@@ -699,10 +701,15 @@ export function ProfilePanel({
             <ProfileSection title="Child">
               <InfoRow label="Date of birth" value={lead.dob ? `${formatDate(lead.dob)} (${age} yrs)` : '—'} />
               {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
-              <InfoRow label="Source" value={lead.source ?? '—'} />
-              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
-              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
               <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : lead.form_sent_at ? '⧗ Sent — awaiting return' : '— not yet sent'} color={lead.form_received ? C.green : lead.form_sent_at ? C.yellow : C.muted} />
+            </ProfileSection>
+
+            <ProfileSection title="Enquiry">
+              <InfoRow label="Received" value={formatDate(lead.received_at)} />
+              {utmSource && <InfoRow label="Source" value={utmSource} />}
+              {utmMedium && <InfoRow label="Medium" value={utmMedium} />}
+              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
+              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
             </ProfileSection>
 
             <ProfileSection title="Guardian">
