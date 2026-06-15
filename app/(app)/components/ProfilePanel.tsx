@@ -547,6 +547,8 @@ export function ProfilePanel({
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [textMsgOpen, setTextMsgOpen] = useState(false)
   const [textMsg, setTextMsg] = useState('')
+  const [emailMsgOpen, setEmailMsgOpen] = useState(false)
+  const [emailMsg, setEmailMsg] = useState('')
   const [lossOpen, setLossOpen] = useState(false)
 
   const isAdmin = userRole === 'admin' || userRole === 'management'
@@ -625,7 +627,7 @@ export function ProfilePanel({
             <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
               <Next onClick={() => setCallOpen(!callOpen)}>📞 Call</Next>
               <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg('') }}>💬 Log text</Quiet>
-              <Quiet onClick={() => startTransition(() => logEmail(lead.id, userId))}>✉ Log email</Quiet>
+              <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg('') }}>✉ Log email</Quiet>
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
               {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}
               {lead.status === 'booked' && !lead.confirmation_sent_at && (
@@ -660,6 +662,20 @@ export function ProfilePanel({
                   placeholder="What did you send?" autoFocus
                   style={{ flex: 1, padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 12, fontFamily: FONT }} />
                 <button onClick={() => { if (textMsg.trim()) { startTransition(() => logText(lead.id, userId, textMsg.trim())); setTextMsg(''); setTextMsgOpen(false) } }}
+                  style={{ fontFamily: FONT, fontWeight: 700, fontSize: 12, padding: '6px 12px', background: C.ink, color: '#fff', border: 'none', cursor: 'pointer' }}>
+                  Log
+                </button>
+              </div>
+            )}
+
+            {/* Log email inline input */}
+            {emailMsgOpen && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input value={emailMsg} onChange={e => setEmailMsg(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && emailMsg.trim()) { startTransition(() => logEmail(lead.id, userId, emailMsg.trim())); setEmailMsg(''); setEmailMsgOpen(false) } }}
+                  placeholder="What did you send?" autoFocus
+                  style={{ flex: 1, padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 12, fontFamily: FONT }} />
+                <button onClick={() => { if (emailMsg.trim()) { startTransition(() => logEmail(lead.id, userId, emailMsg.trim())); setEmailMsg(''); setEmailMsgOpen(false) } }}
                   style={{ fontFamily: FONT, fontWeight: 700, fontSize: 12, padding: '6px 12px', background: C.ink, color: '#fff', border: 'none', cursor: 'pointer' }}>
                   Log
                 </button>
