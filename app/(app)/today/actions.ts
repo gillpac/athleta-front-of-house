@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import { buildSig, postToZapier } from '@/lib/email-helpers'
+import { buildSig, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
 
 async function insertActivity(leadId: string, userId: string, kind: string, body: string) {
   const admin = createAdminClient()
@@ -145,9 +145,9 @@ export async function sendConfirmation(leadId: string, userId: string) {
       ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
       : 'TBC'
     const guardianFirstName = guardian?.first_name ?? 'there'
-    const jotformUrl = process.env.JOTFORM_URL
+    const jotformUrl = buildJotformUrl(lead.site, lead, guardian as Record<string, string> | null)
     const jotformLine = jotformUrl
-      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">${jotformUrl}</a></p>`
+      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">Complete enrolment form</a></p>`
       : ''
     const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early and wear comfortable clothing — bare feet for gymnastics.</p>${jotformLine}<p>See you soon!</p>${buildSig(lead.site)}`
 
@@ -162,9 +162,10 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = { confirmation_sent_at: now }
-  if (process.env.JOTFORM_URL) updates.form_sent_at = now
+  const jotformConfigured = !!(lead?.site === 'altona_north' ? process.env.JOTFORM_URL_ALTONA_NORTH : process.env.JOTFORM_URL_COOLAROO)
+  if (jotformConfigured) updates.form_sent_at = now
   await supabase.from('leads').update(updates).eq('id', leadId)
-  const activityMsg = process.env.JOTFORM_URL
+  const activityMsg = jotformConfigured
     ? 'Confirmation email sent (Jotform link included)'
     : 'Confirmation email sent'
   await insertActivity(leadId, userId, 'comm', activityMsg)
@@ -218,18 +219,18 @@ export async function sendJotform(leadId: string, userId: string) {
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const jotformUrl = process.env.JOTFORM_URL
-  if (jotformUrl) {
-    const { data: lead } = await admin
-      .from('leads')
-      .select('*, guardian:guardians(*)')
-      .eq('id', leadId)
-      .single()
+  const { data: lead } = await admin
+    .from('leads')
+    .select('*, guardian:guardians(*)')
+    .eq('id', leadId)
+    .single()
 
-    if (lead) {
-      const guardian = lead.guardian as Record<string, string> | null
+  if (lead) {
+    const guardian = lead.guardian as Record<string, string> | null
+    const jotformUrl = buildJotformUrl(lead.site, lead, guardian)
+    if (jotformUrl) {
       const guardianFirstName = guardian?.first_name ?? 'there'
-      const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Please complete our short enrolment form for <strong>${lead.child_first}</strong> before the trial — it only takes a few minutes and helps us look after ${lead.child_first} safely:</p><p>📋 <a href="${jotformUrl}" style="color:#E26839;">${jotformUrl}</a></p><p>Thanks!</p>${buildSig(lead.site)}`
+      const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Please complete our short enrolment form for <strong>${lead.child_first}</strong> before the trial — it only takes a few minutes and helps us look after ${lead.child_first} safely:</p><p>📋 <a href="${jotformUrl}" style="color:#E26839;">Complete enrolment form</a></p><p>Thanks!</p>${buildSig(lead.site)}`
       await postToZapier({
         to: guardian?.email ?? null,
         subject: `Enrolment form — ${lead.child_first} at Athleta Gymnastics`,
@@ -241,7 +242,7 @@ export async function sendJotform(leadId: string, userId: string) {
   }
 
   await supabase.from('leads').update({ form_sent_at: new Date().toISOString() }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'comm', jotformUrl ? 'Jotform sent to parent' : 'Jotform sent to parent (no URL configured)')
+  await insertActivity(leadId, userId, 'comm', 'Jotform sent to parent')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'form_sent' })
   revalidatePath('/today')
   revalidatePath('/leads')

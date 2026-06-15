@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import { buildSig, postToZapier } from '@/lib/email-helpers'
+import { buildSig, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
 
 function revalidate() {
   revalidatePath('/leads')
@@ -110,9 +110,9 @@ export async function sendConfirmation(leadId: string, userId: string) {
       ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
       : 'TBC'
     const guardianFirstName = guardian?.first_name ?? 'there'
-    const jotformUrl = process.env.JOTFORM_URL
+    const jotformUrl = buildJotformUrl(lead.site, lead, guardian)
     const jotformLine = jotformUrl
-      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">${jotformUrl}</a></p>`
+      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">Complete enrolment form</a></p>`
       : ''
     const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early and wear comfortable clothing — bare feet for gymnastics.</p>${jotformLine}<p>See you soon!</p>${buildSig(lead.site)}`
 
@@ -127,9 +127,10 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = { confirmation_sent_at: now }
-  if (process.env.JOTFORM_URL) updates.form_sent_at = now
+  const jotformConfigured = !!(lead?.site === 'altona_north' ? process.env.JOTFORM_URL_ALTONA_NORTH : process.env.JOTFORM_URL_COOLAROO)
+  if (jotformConfigured) updates.form_sent_at = now
   await supabase.from('leads').update(updates).eq('id', leadId)
-  const activityMsg = process.env.JOTFORM_URL
+  const activityMsg = jotformConfigured
     ? 'Confirmation email sent (Jotform link included)'
     : 'Confirmation email sent'
   await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'comm', body: activityMsg })
