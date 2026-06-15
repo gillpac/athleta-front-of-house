@@ -41,7 +41,7 @@ export default function AppShell({
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#F6F3EE' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F4F4F2' }}>
       {/* Header */}
       <div
         style={{

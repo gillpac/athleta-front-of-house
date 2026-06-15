@@ -173,7 +173,7 @@ const lbl: React.CSSProperties = {
 }
 
 const colHead: React.CSSProperties = {
-  fontSize: 10, fontWeight: 900, color: C.muted,
+  fontSize: 10, fontWeight: 700, color: C.muted,
   textTransform: 'uppercase', letterSpacing: 1,
 }
 
@@ -183,13 +183,13 @@ function Panel({ children, head, badge, sub, style }: {
   sub?: React.ReactNode; style?: React.CSSProperties
 }) {
   return (
-    <section style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 6, marginBottom: 22, ...style }}>
+    <section style={{ background: C.card, border: 'none', borderRadius: 12, marginBottom: 18, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden', ...style }}>
       <div style={{
-        padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`,
-        display: 'flex', gap: 10, alignItems: 'center', background: '#FCFAF7',
+        padding: '14px 18px 12px',
+        display: 'flex', gap: 10, alignItems: 'center', background: C.card,
       }}>
         {badge}
-        <h3 style={{ margin: 0, fontSize: 12.5, fontWeight: 900, color: C.ink, textTransform: 'uppercase', letterSpacing: 1.2 }}>{head}</h3>
+        <h3 style={{ margin: 0, fontSize: 11.5, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 1.4 }}>{head}</h3>
         {sub}
       </div>
       {children}
@@ -400,7 +400,7 @@ function LossPicker({ onNurture, onLost, onCancel }: {
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 4, padding: '10px 12px', marginTop: 6, maxWidth: 340 }}>
-      <div style={{ fontSize: 11, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Didn&apos;t enrol — what now?</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Didn&apos;t enrol — what now?</div>
       {/* Lost vs Nurture toggle */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['nurture', 'lost'] as const).map(m => (
@@ -1204,10 +1204,10 @@ export default function TodayClient({
         }
       >
         {newLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Received</span>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Received</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
           </div>
         )}
         {newLeads.length === 0 && (
@@ -1258,7 +1258,7 @@ export default function TodayClient({
 
         {/* Site filter (admin/management only) */}
         {isMultiSite && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Site:</span>
             {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
               <button key={s} onClick={() => setSiteFilter(s)}
@@ -1276,7 +1276,7 @@ export default function TodayClient({
 
         {/* Custom date pickers */}
         {trialTab === 'custom' && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>From</span>
             <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line}`, fontSize: 12 }} />
             <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>to</span>
@@ -1288,11 +1288,11 @@ export default function TodayClient({
         {trialTab === 'today' && (
           <>
             {trialsByTab.today.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>① Arrived?</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>② Outcome</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>① Arrived?</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>② Outcome</span>
               </div>
             )}
             {trialsByTab.today.length === 0 && (
@@ -1309,7 +1309,7 @@ export default function TodayClient({
         {trialTab === 'noshows' && (
           <>
             {trialsByTab.noshows.length > 0 && (
-              <div style={{ padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+              <div style={{ padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
                 <span style={{ fontSize: 10, fontWeight: 900, color: C.red, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — contact &amp; re-book</span>
               </div>
             )}
@@ -1327,10 +1327,10 @@ export default function TodayClient({
         {trialTab === 'tomorrow' && (
           <>
             {trialsByTab.tomorrow.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
               </div>
             )}
             {trialsByTab.tomorrow.length === 0 && (
@@ -1347,10 +1347,10 @@ export default function TodayClient({
         {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
           <>
             {trialsByTab[trialTab].length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Date / time</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Status / action</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Date / time</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Status / action</span>
               </div>
             )}
             {trialsByTab[trialTab].length === 0 && (
@@ -1391,10 +1391,10 @@ export default function TodayClient({
         sub={<span style={{ fontSize: 11.5, fontWeight: 400, color: C.muted }}>{upcomingNewLeads.length} scheduled</span>}
       >
         {upcomingNewLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Follow-up due</span>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last outcome</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Follow-up due</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last outcome</span>
           </div>
         )}
         {upcomingNewLeads.length === 0
