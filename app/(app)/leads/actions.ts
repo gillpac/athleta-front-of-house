@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import { buildSig, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
+import { buildAddress, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
 
 function revalidate() {
   revalidatePath('/leads')
@@ -99,22 +99,24 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
   const { data: lead } = await admin
     .from('leads')
-    .select('*, guardian:guardians(*), programme:programmes(name)')
+    .select('*, guardian:guardians(*)')
     .eq('id', leadId)
     .single()
 
   if (lead) {
     const guardian = lead.guardian as Record<string, string> | null
-    const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
-    const trialDate = lead.trial_at
-      ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
-      : 'TBC'
     const guardianFirstName = guardian?.first_name ?? 'there'
+    const trialDateStr = lead.trial_at
+      ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
+      : 'TBC'
+    const trialTimeStr = lead.trial_at
+      ? new Date(lead.trial_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
+      : 'TBC'
     const jotformUrl = buildJotformUrl(lead.site, lead, guardian)
     const jotformLine = jotformUrl
-      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">Complete enrolment form</a></p>`
+      ? `👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>`
       : ''
-    const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early and wear comfortable clothing — bare feet for gymnastics.</p>${jotformLine}<p>See you soon!</p>${buildSig(lead.site)}`
+    const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0 0 20px 0;font-size:14px;">Hi ${guardianFirstName},<br><br>Thanks for booking a trial class with Athleta Gymnastics — we're looking forward to welcoming ${lead.child_first}.<br><br><strong>Trial Date:</strong> ${trialDateStr}<br><strong>Time:</strong> ${trialTimeStr}<br><strong>Address:</strong> ${buildAddress(lead.site)}<br><br>Before attending, please complete this short form using the link below. It covers medical and emergency details and must be completed prior to the trial.<br><br>${jotformLine}If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
 
     await postToZapier({
       to: guardian?.email ?? null,

@@ -17,10 +17,10 @@ export function buildJotformUrl(site: string, lead: {
   return `${base}?${params.toString()}`
 }
 
-export function buildSig(site: string) {
+export function buildAddress(site: string) {
   return site === 'altona_north'
-    ? `<p style="color:#555;font-size:13px;margin-top:24px;border-top:1px solid #eee;padding-top:12px;"><strong>Athleta Gymnastics — Altona North</strong><br>📞 (03) 9999 0002<br>🌐 www.athletagymnastics.com.au</p>`
-    : `<p style="color:#555;font-size:13px;margin-top:24px;border-top:1px solid #eee;padding-top:12px;"><strong>Athleta Gymnastics — Coolaroo</strong><br>📞 (03) 9999 0001<br>🌐 www.athletagymnastics.com.au</p>`
+    ? '33c Chambers Road, Altona North VIC 3025'
+    : 'Unit 2/2-10 Reservoir Drive, Coolaroo VIC 3048'
 }
 
 export async function postToZapier(payload: Record<string, unknown>) {
