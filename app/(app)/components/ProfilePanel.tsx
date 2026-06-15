@@ -633,8 +633,8 @@ export function ProfilePanel({
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
               {lead.status === 'booked' && <Quiet onClick={() => setBookingOpen(true)}>Edit trial</Quiet>}
               {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}
-              {lead.status === 'booked' && !lead.confirmation_sent_at && (
-                <Quiet onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Quiet>
+              {lead.status === 'booked' && (
+                <Quiet onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>{lead.confirmation_sent_at ? 'Resend confirmation' : 'Send confirmation'}</Quiet>
               )}
               {lead.status === 'booked' && (
                 <Quiet onClick={() => setLossOpen(v => !v)}>Didn&apos;t enrol</Quiet>
