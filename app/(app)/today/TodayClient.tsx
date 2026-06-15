@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useOptimistic, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
 import {
   logCallOutcome,
@@ -23,21 +23,36 @@ import { ProfilePanel } from '../components/ProfilePanel'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  ink: '#17130E',
-  orange: '#E26839', orangeDark: '#B94E22',
-  bg: '#F6F3EE', card: '#FFFFFF',
-  sand: '#EFE8DE', line: '#D9CFC2', lineSoft: '#E8E1D6',
-  muted: '#84776A',
-  green: '#27865C', greenDark: '#1E6B49', greenBg: '#DFF0E6',
-  yellow: '#9A7409', yellowBg: '#FBF1CF',
-  red: '#B23A24', redBg: '#F6DCD4',
-  grey: '#6E655B', greyBg: '#ECE7DF',
+  ink: '#23201d',
+  head: '#14110d',
+  body: '#4a453f',
+  muted: '#5f5851',
+  faint: '#877f75',
+  orange: '#E26839',
+  bg: '#f6f4f1',
+  card: '#ffffff',
+  soft: '#faf8f6',
+  line: '#efeae3',
+  lineSoft: '#efeae3',
+  line2: '#e6e0d8',
+  red: '#bf4a30',
+  redBg: '#fde8e3',
+  green: '#3f8f5e',
+  greenDark: '#2d6b46',
+  greenBg: '#eef6f0',
+  sand: '#f0ebe4',
+  yellow: '#9A7409',
+  yellowBg: '#FBF1CF',
+  grey: '#5f5851',
+  greyBg: '#f3efe9',
+  yellowGauge: '#E8A838',
 }
-const FONT = "'Nunito', system-ui, sans-serif"
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
+const RADIUS = 8
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const waitLabel = (mins: number) =>
-  mins < 60 ? `${mins} min` : mins < 1440 ? `${Math.round(mins / 60)} hrs` : `${Math.round(mins / 1440)} days`
+  mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} hrs ago` : `${Math.round(mins / 1440)} days ago`
 
 const ageFrom = (dob: string | null): string => {
   if (!dob) return ''
@@ -79,7 +94,7 @@ function calcOpDaysLeft(todayStr: string, blockoutDays: BlockoutDay[]): number {
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
   const blockoutSet = new Set(blockoutDays.map(b => b.day))
   let n = 0
-  const d = new Date(today.getTime() + 86400000) // start tomorrow
+  const d = new Date(today.getTime() + 86400000)
   while (d <= endOfMonth) {
     const ds = d.toISOString().split('T')[0]
     if (d.getDay() !== 0 && !blockoutSet.has(ds)) n++
@@ -92,7 +107,55 @@ function monthName(todayStr: string): string {
   return new Date(todayStr + 'T12:00:00').toLocaleString('en-AU', { month: 'long' })
 }
 
-// ─── Primitive UI components ──────────────────────────────────────────────────
+// ─── Primitive buttons ────────────────────────────────────────────────────────
+function BtnPrimary({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      fontFamily: FONT, fontSize: 12.5, fontWeight: 600, borderRadius: 7, padding: '7px 13px',
+      cursor: disabled ? 'default' : 'pointer', border: '1px solid transparent',
+      background: disabled ? C.greyBg : C.orange, color: disabled ? C.muted : '#fff',
+      opacity: disabled ? 0.6 : 1,
+    }}>{children}</button>
+  )
+}
+
+function BtnGhost({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      fontFamily: FONT, fontSize: 12.5, fontWeight: 500, borderRadius: 7, padding: '7px 13px',
+      cursor: disabled ? 'default' : 'pointer', border: `1px solid ${C.line2}`,
+      background: '#fff', color: C.body, marginLeft: 7, opacity: disabled ? 0.5 : 1,
+    }}>{children}</button>
+  )
+}
+
+function BtnQuiet({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      fontFamily: FONT, fontSize: 12.5, fontWeight: 500, borderRadius: 7, padding: '7px 13px',
+      cursor: disabled ? 'default' : 'pointer', border: `1px solid ${C.line2}`,
+      background: '#fff', color: C.body, opacity: disabled ? 0.5 : 1,
+    }}>{children}</button>
+  )
+}
+
+function BtnSale({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      fontFamily: FONT, fontSize: 12.5, fontWeight: 700, borderRadius: 7, padding: '7px 13px',
+      cursor: disabled ? 'default' : 'pointer', border: '1px solid transparent',
+      background: disabled ? C.greyBg : C.green, color: disabled ? C.muted : '#fff',
+      opacity: disabled ? 0.6 : 1,
+    }}>{children}</button>
+  )
+}
+
+// Legacy aliases for internal use
+const Next = BtnPrimary
+const Sale = BtnSale
+const Quiet = BtnQuiet
+
+// ─── Chip (small inline tag) ──────────────────────────────────────────────────
 type TagTone = 'green' | 'yellow' | 'red' | 'grey'
 function Tag({ children, tone = 'grey', solid, onClick, title }: {
   children: React.ReactNode; tone?: TagTone; solid?: boolean; onClick?: () => void; title?: string
@@ -105,135 +168,64 @@ function Tag({ children, tone = 'grey', solid, onClick, title }: {
   }
   const [fg, bg] = map[tone]
   return (
-    <span
-      onClick={onClick}
-      title={title}
-      style={{
-        background: solid ? fg : bg,
-        color: solid ? '#fff' : fg,
-        fontSize: 10.5, fontWeight: 800,
-        padding: '3px 8px', borderRadius: 3,
-        letterSpacing: 0.4, textTransform: 'uppercase', whiteSpace: 'nowrap',
-        cursor: onClick ? 'pointer' : 'default',
-        display: 'inline-block',
-      }}
-    >{children}</span>
+    <span onClick={onClick} title={title} style={{
+      background: solid ? fg : bg, color: solid ? '#fff' : fg,
+      fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 5,
+      letterSpacing: 0.3, whiteSpace: 'nowrap',
+      cursor: onClick ? 'pointer' : 'default', display: 'inline-block',
+    }}>{children}</span>
   )
 }
 
-function Next({ children, onClick, color = C.orange, border = C.orangeDark, disabled }: {
-  children: React.ReactNode; onClick?: () => void; color?: string; border?: string; disabled?: boolean
-}) {
+function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: disabled ? 'default' : 'pointer',
-        borderRadius: 4, padding: '6px 13px',
-        background: disabled ? C.greyBg : color,
-        color: disabled ? C.muted : '#fff',
-        border: `1px solid ${disabled ? C.line : border}`,
-        opacity: disabled ? 0.6 : 1,
-      }}
-    >{children}</button>
+    <span style={{
+      display: 'inline-block', fontSize: 11, color: C.muted, background: '#f4f0ea',
+      borderRadius: 5, padding: '2px 7px', marginLeft: 7, fontWeight: 500,
+    }}>{children}</span>
   )
 }
 
-function Sale({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
-  return <Next onClick={onClick} color={C.green} border={C.greenDark} disabled={disabled}>{children}</Next>
-}
-
-function Quiet({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+// CountPill for card headers
+function CountPill({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        fontFamily: FONT, fontWeight: 700, fontSize: 11.5, cursor: disabled ? 'default' : 'pointer',
-        borderRadius: 4, padding: '6px 10px',
-        background: 'transparent', color: C.muted,
-        border: `1px solid ${C.lineSoft}`,
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >{children}</button>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.orange, display: 'inline-block', flexShrink: 0 }} />
+      {children}
+    </span>
   )
 }
 
 const inp: React.CSSProperties = {
-  fontFamily: FONT, fontSize: 13, fontWeight: 700,
-  padding: '8px 10px', borderRadius: 4,
-  border: `1px solid ${C.line}`, background: '#fff',
+  fontFamily: FONT, fontSize: 13, fontWeight: 600,
+  padding: '8px 10px', borderRadius: 6,
+  border: `1px solid ${C.line2}`, background: '#fff',
 }
 
 const lbl: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 4,
-  fontSize: 11.5, fontWeight: 800, color: '#2B2521',
+  fontSize: 11.5, fontWeight: 700, color: C.muted,
   marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5,
 }
 
-const colHead: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: C.muted,
-  textTransform: 'uppercase', letterSpacing: 1,
-}
-
-// ─── Panel wrapper ────────────────────────────────────────────────────────────
-function Panel({ children, head, badge, sub, style }: {
-  children: React.ReactNode; head: string; badge?: React.ReactNode
-  sub?: React.ReactNode; style?: React.CSSProperties
+// ─── Card wrapper ─────────────────────────────────────────────────────────────
+function Card({ children, head, sub, right, style }: {
+  children: React.ReactNode; head: string; sub?: React.ReactNode; right?: React.ReactNode; style?: React.CSSProperties
 }) {
   return (
-    <section style={{ background: C.card, border: 'none', borderRadius: 12, marginBottom: 18, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden', ...style }}>
-      <div style={{
-        padding: '14px 18px 12px',
-        display: 'flex', gap: 10, alignItems: 'center', background: C.card,
-      }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.ink, letterSpacing: '-0.01em' }}>{head}</h3>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          {sub}
-          {badge}
+    <section style={{
+      background: C.card, border: `1px solid ${C.line}`, borderRadius: RADIUS,
+      overflow: 'hidden', marginBottom: 18, ...style
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 14px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, color: C.head, letterSpacing: '-0.2px' }}>{head}</h2>
+          {sub && <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 400, marginTop: 2 }}>{sub}</div>}
         </div>
+        {right && <div style={{ fontSize: 12.5, color: C.muted }}>{right}</div>}
       </div>
       {children}
     </section>
-  )
-}
-
-// ─── WhoCell ──────────────────────────────────────────────────────────────────
-function WhoCell({ lead, onOpen, onOpenParent, showSite }: {
-  lead: Lead & { guardians: Guardian }; onOpen: () => void; onOpenParent: () => void; showSite?: boolean
-}) {
-  const age = ageFrom(lead.dob)
-  const rel = lead.relationship ?? 'parent'
-  const guardian = lead.guardians
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <button
-          onClick={onOpen}
-          style={{
-            fontFamily: FONT, fontWeight: 800, fontSize: 13.5, color: C.ink,
-            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-            borderBottom: `1px dotted ${C.muted}`,
-          }}
-        >{lead.child_first} {lead.child_last}</button>
-        {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 11.5 }}>{age} yrs</span>}
-        {showSite && <Tag tone={lead.site === 'coolaroo' ? 'green' : 'yellow'}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Tag>}
-        {lead.rebooks > 0 && <Tag tone="yellow">re-booked ×{lead.rebooks}</Tag>}
-      </div>
-      <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 400, marginTop: 1 }}>
-        {rel.toLowerCase()} ·{' '}
-        <button
-          onClick={onOpenParent}
-          style={{
-            fontFamily: FONT, fontWeight: 400, fontSize: 11.5, color: C.muted,
-            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-            borderBottom: `1px dotted ${C.line}`,
-          }}
-        >{guardian.first_name} {guardian.last_name}</button>
-      </div>
-      <div style={{ fontSize: 11.5, color: C.ink, fontWeight: 600, marginTop: 1 }}>{guardian.phone}</div>
-    </div>
   )
 }
 
@@ -256,7 +248,7 @@ function tomorrowDateStr(): string {
 
 function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string) => void; onClose: () => void }) {
   const [step, setStep] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null) // ISO string of chosen follow-up
+  const [selected, setSelected] = useState<string | null>(null)
   const [customDate, setCustomDate] = useState(tomorrowDateStr())
   const [showCustom, setShowCustom] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -271,41 +263,34 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
 
   function tileStyle(active: boolean, accent = C.ink) {
     return {
-      fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer',
-      padding: '8px 6px', border: `1px solid ${active ? accent : C.line}`,
+      fontFamily: FONT, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+      padding: '8px 6px', border: `1px solid ${active ? accent : C.line2}`,
       background: active ? accent : '#fff', color: active ? '#fff' : C.muted,
+      borderRadius: 6,
     } as React.CSSProperties
   }
 
   if (step) {
-    const confirm = () => {
-      if (!selected) return
-      onPick(step!, selected)
-    }
     return (
       <div ref={menuRef} style={{
-        position: 'absolute', top: '105%', left: 0,
-        background: '#fff', border: `1px solid ${C.line}`,
-        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 280, padding: 12,
+        position: 'absolute', top: '105%', right: 0,
+        background: '#fff', border: `1px solid ${C.line2}`,
+        borderRadius: RADIUS, boxShadow: '0 10px 30px rgba(0,0,0,.12)', zIndex: 30, minWidth: 280, padding: 12,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-          {([['1 hour', 'h1'], ['2 hours', 'h2']] as [string, string][]).map(([label, key]) => {
-            const iso = new Date(Date.now() + (key === 'h1' ? 1 : 2) * 3600000).toISOString()
+          {(['1 hour', '2 hours'] as string[]).map((label, i) => {
+            const iso = new Date(Date.now() + (i + 1) * 3600000).toISOString()
             return (
-              <button key={key} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso, C.orange)}>
+              <button key={label} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso, C.orange)}>
                 {label}
               </button>
             )
           })}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-          {([
-            ['Tomorrow', 1],
-            ['Two days', 2],
-            ['Three days', 3],
-            ['Next week', 7],
-          ] as [string, number][]).map(([label, days]) => {
+          {(['Tomorrow', 'Two days', 'Three days', 'Next week'] as string[]).map((label, i) => {
+            const days = [1, 2, 3, 7][i]
             const iso = followUpDate(days)
             return (
               <button key={label} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso)}>
@@ -320,23 +305,21 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
         {showCustom && (
           <div style={{ marginBottom: 8 }}>
             <input
-              type="date"
-              value={customDate}
-              min={tomorrowDateStr()}
+              type="date" value={customDate} min={tomorrowDateStr()}
               onChange={e => {
                 setCustomDate(e.target.value)
                 if (e.target.value) setSelected(new Date(e.target.value + 'T09:00:00').toISOString())
               }}
-              style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, boxSizing: 'border-box' as const }}
+              style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line2}`, fontSize: 13, boxSizing: 'border-box' as const, borderRadius: 6 }}
             />
           </div>
         )}
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Cancel</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line2}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT, borderRadius: 6 }}>Cancel</button>
           <button
-            onClick={confirm}
+            onClick={() => selected && onPick(step!, selected)}
             disabled={!selected}
-            style={{ flex: 2, padding: '7px', border: 'none', background: selected ? C.ink : C.greyBg, color: selected ? '#fff' : C.muted, cursor: selected ? 'pointer' : 'default', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            style={{ flex: 2, padding: '7px', border: 'none', borderRadius: 6, background: selected ? C.ink : C.greyBg, color: selected ? '#fff' : C.muted, cursor: selected ? 'pointer' : 'default', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             Log &amp; set reminder
           </button>
         </div>
@@ -345,36 +328,28 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
   }
 
   return (
-    <div
-      ref={menuRef}
-      style={{
-        position: 'absolute', top: '105%', left: 0,
-        background: '#fff', border: `1px solid ${C.line}`,
-        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 220,
-      }}
-    >
-      <div style={{ ...colHead, padding: '7px 10px', borderBottom: `1px solid ${C.lineSoft}` }}>I called — what happened?</div>
+    <div ref={menuRef} style={{
+      position: 'absolute', top: '105%', right: 0,
+      background: '#fff', border: `1px solid ${C.line2}`,
+      borderRadius: RADIUS, boxShadow: '0 10px 30px rgba(0,0,0,.12)', zIndex: 30, minWidth: 220,
+    }}>
+      <div style={{ padding: '7px 12px', borderBottom: `1px solid ${C.line}`, fontSize: 10.5, fontWeight: 700, color: C.faint, textTransform: 'uppercase', letterSpacing: 0.7 }}>
+        I called — what happened?
+      </div>
       {CALL_OUTCOMES.map(o => (
-        <button
-          key={o}
-          onClick={() => NEEDS_FOLLOWUP.has(o) ? setStep(o) : onPick(o)}
-          style={{
-            display: 'block', width: '100%', textAlign: 'left',
-            fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
-            padding: '8px 10px', background: 'none', border: 'none',
-            borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer', color: '#2B2521',
-          }}
-        >{o}</button>
-      ))}
-      <button
-        onClick={() => onPick('__open_profile__')}
-        style={{
+        <button key={o} onClick={() => NEEDS_FOLLOWUP.has(o) ? setStep(o) : onPick(o)} style={{
           display: 'block', width: '100%', textAlign: 'left',
-          fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
-          padding: '8px 10px', background: 'none', border: 'none',
-          cursor: 'pointer', color: C.muted,
-        }}
-      >Other — add a note</button>
+          fontFamily: FONT, fontSize: 13, fontWeight: 500,
+          padding: '9px 12px', background: 'none', border: 'none',
+          borderBottom: `1px solid ${C.line}`, cursor: 'pointer', color: C.body,
+        }}>{o}</button>
+      ))}
+      <button onClick={() => onPick('__open_profile__')} style={{
+        display: 'block', width: '100%', textAlign: 'left',
+        fontFamily: FONT, fontSize: 13, fontWeight: 500,
+        padding: '9px 12px', background: 'none', border: 'none',
+        cursor: 'pointer', color: C.muted,
+      }}>Other — add a note</button>
     </div>
   )
 }
@@ -394,35 +369,24 @@ function LossPicker({ onNurture, onLost, onCancel }: {
   const finalReason = reason === 'Other' ? (other.trim() ? `Other — ${other.trim()}` : '') : reason
   const ok = !!finalReason && (mode === 'lost' || !!followupDate)
 
-  function confirm() {
-    if (!ok) return
-    if (mode === 'nurture') onNurture(finalReason, followupDate)
-    else onLost(finalReason)
-  }
-
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 4, padding: '10px 12px', marginTop: 6, maxWidth: 340 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.line2}`, borderRadius: RADIUS, padding: '10px 12px', marginTop: 6, maxWidth: 340 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Didn&apos;t enrol — what now?</div>
-      {/* Lost vs Nurture toggle */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['nurture', 'lost'] as const).map(m => (
           <button key={m} onClick={() => setMode(m)} style={{
-            flex: 1, padding: '6px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+            flex: 1, padding: '6px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: 6,
             background: mode === m ? C.ink : C.card,
             color: mode === m ? '#fff' : C.muted,
-            border: `1px solid ${mode === m ? C.ink : C.line}`,
+            border: `1px solid ${mode === m ? C.ink : C.line2}`,
           }}>
-            {m === 'nurture' ? '🌱 Nurture' : '✗ Lost'}
+            {m === 'nurture' ? 'Nurture' : 'Lost'}
           </button>
         ))}
       </div>
-      {mode === 'nurture' && (
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Follow up later — stays in system with a future date</div>
-      )}
-      {mode === 'lost' && (
-        <div style={{ fontSize: 11, color: C.red, marginBottom: 8 }}>Dead lead — requires a reason, no further follow-up</div>
-      )}
-      <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', marginBottom: 6 }}>
+      {mode === 'nurture' && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Follow up later — stays in system with a future date</div>}
+      {mode === 'lost' && <div style={{ fontSize: 11, color: C.red, marginBottom: 8 }}>Dead lead — requires a reason, no further follow-up</div>}
+      <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inp, padding: '4px 6px', fontSize: 12, width: '100%', marginBottom: 6 }}>
         <option>Price</option>
         <option>Timing / not ready</option>
         <option>Day didn&apos;t suit</option>
@@ -431,19 +395,21 @@ function LossPicker({ onNurture, onLost, onCancel }: {
       </select>
       {reason === 'Other' && (
         <input value={other} onChange={e => setOther(e.target.value)} placeholder="what happened?"
-          style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', marginBottom: 6, boxSizing: 'border-box' }} />
+          style={{ ...inp, padding: '4px 6px', fontSize: 12, width: '100%', marginBottom: 6, boxSizing: 'border-box' }} />
       )}
       {mode === 'nurture' && (
         <div style={{ marginBottom: 6 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, marginBottom: 3 }}>FOLLOW-UP DATE</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 3 }}>FOLLOW-UP DATE</div>
           <input type="date" value={followupDate} min={minDate.toISOString().split('T')[0]}
             onChange={e => setFollowupDate(e.target.value)}
-            style={{ ...inp, padding: '4px 6px', fontSize: 11.5, width: '100%', boxSizing: 'border-box' }} />
+            style={{ ...inp, padding: '4px 6px', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
         </div>
       )}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-        <Quiet onClick={onCancel}>Cancel</Quiet>
-        <Next onClick={confirm} disabled={!ok}>{mode === 'nurture' ? 'Move to nurture' : 'Mark lost'}</Next>
+        <BtnQuiet onClick={onCancel}>Cancel</BtnQuiet>
+        <BtnPrimary onClick={() => ok && (mode === 'nurture' ? onNurture(finalReason, followupDate) : onLost(finalReason))} disabled={!ok}>
+          {mode === 'nurture' ? 'Move to nurture' : 'Mark lost'}
+        </BtnPrimary>
       </div>
     </div>
   )
@@ -466,48 +432,30 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
   }) ?? programmes[0]
   const [progId, setProgId] = useState(lead.programme_id ?? suggestedProg?.id ?? '')
   const ok = date && time
-
   const selectedProg = programmes.find(p => p.id === progId)
 
   function handleConfirm() {
     if (!ok) return
-    // Combine date + time into ISO string (local time naive)
-    const [h, m] = time.split(':').map(Number)
-    const dt = new Date(date)
-    dt.setHours(h, m, 0, 0)
     onConfirm({ date, time, programmeId: progId || null, programmeName: selectedProg?.name ?? '' })
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: '#fff', borderRadius: 6, padding: '22px 24px', width: 360, maxWidth: '92vw', borderTop: `3px solid ${C.orange}` }}
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 900 }}>Book trial — {lead.child_first} {lead.child_last}</h3>
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, marginBottom: 14 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: RADIUS, padding: '22px 24px', width: 360, maxWidth: '92vw', borderTop: `3px solid ${C.orange}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 800, color: C.head }}>Book trial — {lead.child_first} {lead.child_last}</h3>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 14 }}>
           {(lead.relationship ?? '').toLowerCase()} · {lead.guardians.first_name} {lead.guardians.last_name} · {lead.guardians.phone}
         </div>
-        <label style={lbl}>
-          Trial date
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} />
-        </label>
-        <label style={lbl}>
-          Time
-          <input type="time" value={time} onChange={e => setTime(e.target.value)} style={inp} />
-        </label>
-        <label style={lbl}>
-          Programme
+        <label style={lbl}>Trial date<input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} /></label>
+        <label style={lbl}>Time<input type="time" value={time} onChange={e => setTime(e.target.value)} style={inp} /></label>
+        <label style={lbl}>Programme
           <select value={progId} onChange={e => setProgId(e.target.value)} style={inp}>
             {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
-          <Quiet onClick={onClose}>Cancel</Quiet>
-          <Next onClick={handleConfirm} disabled={!ok}>{ok ? 'Confirm booking' : 'Pick date & time'}</Next>
+          <BtnQuiet onClick={onClose}>Cancel</BtnQuiet>
+          <BtnPrimary onClick={handleConfirm} disabled={!ok}>{ok ? 'Confirm booking' : 'Pick date & time'}</BtnPrimary>
         </div>
       </div>
     </div>
@@ -526,49 +474,31 @@ function EnrolModal({ lead, onClose, onConfirm }: {
   const ok = date && slot && payTaken
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: '#fff', borderRadius: 6, padding: '22px 24px', width: 380, maxWidth: '92vw', borderTop: `3px solid ${C.green}` }}
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 900 }}>💰 Make the sale — {lead.child_first} {lead.child_last}</h3>
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, marginBottom: 12 }}>lock in their first class to complete the sale</div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: RADIUS, padding: '22px 24px', width: 380, maxWidth: '92vw', borderTop: `3px solid ${C.green}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 800, color: C.head }}>Make the sale — {lead.child_first} {lead.child_last}</h3>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 12 }}>lock in their first class to complete the sale</div>
         {!lead.form_received && (
-          <div style={{ background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '8px 11px', marginBottom: 12, fontSize: 12, fontWeight: 800, color: C.yellow }}>
-            ⚠ Their Jotform hasn't come back — get it completed before their first class.
+          <div style={{ background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 6, padding: '8px 11px', marginBottom: 12, fontSize: 12, fontWeight: 700, color: C.yellow }}>
+            Jotform hasn&apos;t come back — get it completed before their first class.
           </div>
         )}
-        <label style={lbl}>
-          First class date
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} />
-        </label>
-        <label style={lbl}>
-          Class
-          <input placeholder="e.g. Sat 9:30 am Kinder Gym" value={slot} onChange={e => setSlot(e.target.value)} style={inp} />
-        </label>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, fontWeight: 800, color: '#2B2521', cursor: 'pointer', margin: '4px 0 8px' }}>
+        <label style={lbl}>First class date<input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} /></label>
+        <label style={lbl}>Class<input placeholder="e.g. Sat 9:30 am Kinder Gym" value={slot} onChange={e => setSlot(e.target.value)} style={inp} /></label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, fontWeight: 700, color: C.body, cursor: 'pointer', margin: '4px 0 8px' }}>
           <input type="checkbox" checked={payTaken} onChange={e => setPayTaken(e.target.checked)} style={{ width: 16, height: 16, accentColor: C.green }} />
           Rego & insurance payment taken
         </label>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-          <Quiet onClick={onClose}>Cancel</Quiet>
-          <Sale
-            onClick={() => ok && onConfirm({ date, slot, payTaken })}
-            disabled={!ok}
-          >
-            {!date || !slot ? 'Add first class' : !payTaken ? 'Take payment first' : 'Confirm sale 🎉'}
-          </Sale>
+          <BtnQuiet onClick={onClose}>Cancel</BtnQuiet>
+          <BtnSale onClick={() => ok && onConfirm({ date, slot, payTaken })} disabled={!ok}>
+            {!date || !slot ? 'Add first class' : !payTaken ? 'Take payment first' : 'Confirm sale'}
+          </BtnSale>
         </div>
       </div>
     </div>
   )
 }
-
-
-
 
 // ─── Parent profile slide-in ──────────────────────────────────────────────────
 function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
@@ -587,21 +517,21 @@ function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 430, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.6px' }}>PARENT / GUARDIAN</div>
-            <div style={{ fontSize: 19, fontWeight: 900, color: C.ink, marginTop: 2 }}>{guardian.first_name} {guardian.last_name}</div>
-            <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 400, marginTop: 3 }}>{guardian.phone}{guardian.email ? ` · ${guardian.email}` : ''}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.6px', textTransform: 'uppercase' }}>Parent / Guardian</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, marginTop: 2 }}>{guardian.first_name} {guardian.last_name}</div>
+            <div style={{ fontSize: 13, color: C.muted, fontWeight: 400, marginTop: 3 }}>{guardian.phone}{guardian.email ? ` · ${guardian.email}` : ''}</div>
           </div>
-          <Quiet onClick={onClose}>✕</Quiet>
+          <BtnQuiet onClick={onClose}>✕</BtnQuiet>
         </div>
-        <div style={{ marginTop: 16, fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.6px' }}>CHILDREN ({fam.length})</div>
+        <div style={{ marginTop: 16, fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.6px', textTransform: 'uppercase' }}>Children ({fam.length})</div>
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {fam.map(l => {
             const tone: TagTone = l.status === 'won' ? 'green' : l.status === 'new' ? 'red' : l.status === 'booked' ? 'green' : l.status === 'noshow' ? 'red' : 'yellow'
             return (
               <button key={l.id} onClick={() => onOpenChild(l.id)}
-                style={{ fontFamily: FONT, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, textAlign: 'left', background: C.sand, border: `1px solid ${C.line}`, borderRadius: 6, padding: '10px 12px', cursor: 'pointer' }}>
+                style={{ fontFamily: FONT, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, textAlign: 'left', background: '#f6f4f1', border: `1px solid ${C.line}`, borderRadius: RADIUS, padding: '10px 12px', cursor: 'pointer' }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 13.5, color: C.ink }}>{l.child_first} {l.child_last} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11.5 }}>{ageFrom(l.dob)} yrs</span></div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5, color: C.ink }}>{l.child_first} {l.child_last} <span style={{ color: C.muted, fontWeight: 400, fontSize: 12 }}>{ageFrom(l.dob)} yrs</span></div>
                 </div>
                 <Tag tone={tone}>{l.status}</Tag>
               </button>
@@ -613,91 +543,7 @@ function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
   )
 }
 
-// ─── New lead row ─────────────────────────────────────────────────────────────
-function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, showSite, scheduled }: {
-  lead: Lead & { guardians: Guardian }
-  userId: string
-  onOpen: () => void
-  onOpenParent: () => void
-  onBooked: () => void
-  programmes: Programme[]
-  showSite?: boolean
-  scheduled?: boolean
-}) {
-  const [callFor, setCallFor] = useState(false)
-  const [bookingOpen, setBookingOpen] = useState(false)
-  const [pending, startTransition] = useTransition()
-  const mins = waitMins(lead.received_at)
-
-  function handleCallOutcome(outcome: string, followUpAt?: string) {
-    setCallFor(false)
-    if (outcome === '__open_profile__') { onOpen(); return }
-    if (outcome === 'Spoke — booking now') {
-      startTransition(async () => {
-        await logCallOutcome(lead.id, outcome, userId)
-      })
-      setBookingOpen(true)
-      return
-    }
-    startTransition(() => logCallOutcome(lead.id, outcome, userId, followUpAt))
-  }
-
-  return (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: showSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.5 : 1, background: scheduled ? '#FAFAF9' : 'transparent', borderLeft: scheduled ? `3px solid transparent` : `3px solid ${C.orange}` }}>
-        <div>
-          {scheduled && lead.next_action_at ? (
-            <>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Call back</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{formatTime(lead.next_action_at)}</div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 500, color: C.ink }}>
-                {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: mins > 240 ? C.red : C.muted }}>
-                {waitLabel(mins)} waiting
-              </div>
-            </>
-          )}
-        </div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
-        <div style={{ fontSize: 11.5, fontWeight: 600 }}>
-          {!lead.contacted
-            ? <span style={{ color: C.red }}>Not contacted</span>
-            : lead.last_outcome === 'Spoke — call back later'
-              ? <span style={{ color: C.muted }}>Spoke — call back later</span>
-              : <span style={{ color: C.muted }}>{lead.attempts} call{lead.attempts !== 1 ? 's' : ''} · not reached</span>}
-        </div>
-        {showSite && (
-          <div style={{ fontSize: 11.5, fontWeight: 500, color: C.muted }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</div>
-        )}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', position: 'relative', justifyContent: 'flex-end' }}>
-          <button onClick={() => setCallFor(v => !v)} style={{
-            fontFamily: FONT, fontWeight: 700, fontSize: 12, cursor: 'pointer',
-            borderRadius: 6, padding: '6px 12px', background: '#fff', color: C.orange,
-            border: `1px solid ${C.orange}`, whiteSpace: 'nowrap',
-          }}>📞 Call to book</button>
-          <Quiet onClick={() => setBookingOpen(true)}>Book trial</Quiet>
-          {callFor && <CallMenu onPick={handleCallOutcome} onClose={() => setCallFor(false)} />}
-        </div>
-      </div>
-      {bookingOpen && (
-        <BookingModalWrapper
-          lead={lead}
-          userId={userId}
-          programmes={programmes}
-          onClose={() => setBookingOpen(false)}
-          onDone={() => { setBookingOpen(false); onBooked() }}
-        />
-      )}
-    </>
-  )
-}
-
 // ─── BookingModalWrapper ──────────────────────────────────────────────────────
-// Fetches programmes from parent via props and renders BookingModal
 function BookingModalWrapper({ lead, userId, onClose, onDone, programmes: progs }: {
   lead: Lead & { guardians: Guardian }
   userId: string
@@ -705,7 +551,7 @@ function BookingModalWrapper({ lead, userId, onClose, onDone, programmes: progs 
   onDone: () => void
   programmes?: Programme[]
 }) {
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const programmes = progs ?? []
   return (
     <BookingModal
@@ -725,6 +571,133 @@ function BookingModalWrapper({ lead, userId, onClose, onDone, programmes: progs 
   )
 }
 
+// ─── New lead row (table <tr>) ────────────────────────────────────────────────
+function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, showSite, scheduled }: {
+  lead: Lead & { guardians: Guardian }
+  userId: string
+  onOpen: () => void
+  onOpenParent: () => void
+  onBooked: () => void
+  programmes: Programme[]
+  showSite?: boolean
+  scheduled?: boolean
+}) {
+  const [callFor, setCallFor] = useState(false)
+  const [bookingOpen, setBookingOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const age = ageFrom(lead.dob)
+  const guardian = lead.guardians
+  const mins = waitMins(lead.received_at)
+  const isHot = !scheduled
+
+  function handleCallOutcome(outcome: string, followUpAt?: string) {
+    setCallFor(false)
+    if (outcome === '__open_profile__') { onOpen(); return }
+    if (outcome === 'Spoke — booking now') {
+      startTransition(async () => { await logCallOutcome(lead.id, outcome, userId) })
+      setBookingOpen(true)
+      return
+    }
+    startTransition(() => logCallOutcome(lead.id, outcome, userId, followUpAt))
+  }
+
+  const trStyle: React.CSSProperties = {
+    background: isHot ? 'transparent' : '#faf9f7',
+    opacity: pending ? 0.6 : 1,
+  }
+
+  const firstCellStyle: React.CSSProperties = {
+    padding: '13px 22px',
+    borderBottom: `1px solid ${C.line}`,
+    verticalAlign: 'middle',
+    ...(isHot ? { boxShadow: `inset 3px 0 0 ${C.orange}` } : {}),
+  }
+
+  const td: React.CSSProperties = {
+    padding: '13px 22px',
+    borderBottom: `1px solid ${C.line}`,
+    verticalAlign: 'middle',
+  }
+
+  return (
+    <>
+      <tr style={trStyle}>
+        {/* Received / call back */}
+        <td style={firstCellStyle}>
+          {scheduled && lead.next_action_at ? (
+            <div>
+              <span style={{ display: 'block', fontSize: 10, letterSpacing: '0.6px', textTransform: 'uppercase', color: C.faint, marginBottom: 1 }}>Call back</span>
+              <span style={{ fontSize: 12.5, color: C.faint }}>{formatTime(lead.next_action_at)}</span>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12.5, color: C.body }}>
+                {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+              </div>
+              <span style={{ display: 'block', color: C.red, fontSize: 11.5, marginTop: 1 }}>{waitLabel(mins)}</span>
+            </div>
+          )}
+        </td>
+        {/* Child & guardian */}
+        <td style={td}>
+          <div>
+            <button onClick={onOpen} style={{
+              fontFamily: FONT, fontWeight: 600, fontSize: 14,
+              color: isHot ? C.ink : '#6b645c',
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            }}>
+              {lead.child_first} {lead.child_last}
+              {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
+              {lead.rebooks > 0 && <Chip>re-booked ×{lead.rebooks}</Chip>}
+            </button>
+          </div>
+          <div style={{ color: isHot ? '#524b43' : '#8a837a', fontSize: 13, marginTop: 2 }}>
+            {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
+            <button onClick={onOpenParent} style={{
+              fontFamily: FONT, fontSize: 13, color: 'inherit',
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            }}>
+              {guardian.first_name} {guardian.last_name}
+            </button>
+          </div>
+          <div style={{ color: isHot ? '#524b43' : '#8a837a', fontSize: 13, marginTop: 1 }}>{guardian.phone}</div>
+        </td>
+        {/* Status */}
+        <td style={td}>
+          {!lead.contacted
+            ? <span style={{ fontSize: 12.5, color: C.red, fontWeight: 500 }}>Not contacted</span>
+            : lead.last_outcome === 'Spoke — call back later'
+              ? <span style={{ fontSize: 12.5, color: C.muted }}>Spoke — call back later</span>
+              : <span style={{ fontSize: 12.5, color: C.muted }}>{lead.attempts} call{lead.attempts !== 1 ? 's' : ''} · not reached</span>}
+        </td>
+        {/* Site */}
+        {showSite && (
+          <td style={td}>
+            <span style={{ fontSize: 12.5, color: C.muted }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>
+          </td>
+        )}
+        {/* Actions */}
+        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
+          {isHot
+            ? <BtnPrimary onClick={() => setCallFor(v => !v)}>Call to book</BtnPrimary>
+            : <BtnQuiet onClick={() => setCallFor(v => !v)}>Call</BtnQuiet>}
+          <BtnGhost onClick={() => setBookingOpen(true)}>Book</BtnGhost>
+          {callFor && <CallMenu onPick={handleCallOutcome} onClose={() => setCallFor(false)} />}
+        </td>
+      </tr>
+      {bookingOpen && (
+        <BookingModalWrapper
+          lead={lead}
+          userId={userId}
+          programmes={programmes}
+          onClose={() => setBookingOpen(false)}
+          onDone={() => { setBookingOpen(false); onBooked() }}
+        />
+      )}
+    </>
+  )
+}
+
 // ─── Today trial row ──────────────────────────────────────────────────────────
 function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
@@ -736,94 +709,74 @@ function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent, 
   showSite?: boolean
 }) {
   const leadActs = activities.filter(a => a.lead_id === lead.id)
-  const hasArrived = leadActs.some(a => a.body === 'Marked arrived ✓') &&
-    !leadActs.some(a => a.body === 'Undid: marked arrived' && (
-      leadActs.find(x => x.body === 'Marked arrived ✓')
-        ? new Date(a.created_at) > new Date(leadActs.find(x => x.body === 'Marked arrived ✓')!.created_at)
-        : false
-    ))
-
-  // Simpler: just check last relevant activity
   const sortedActs = [...leadActs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const lastRelevant = sortedActs.find(a => a.body === 'Marked arrived ✓' || a.body === 'Undid: marked arrived')
   const arrivedDone = lastRelevant?.body === 'Marked arrived ✓'
-
   const [lossFor, setLossFor] = useState(false)
   const [enrolOpen, setEnrolOpen] = useState(false)
   const [pending, startTransition] = useTransition()
-
   const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
+  const progName = programmes.find(p => p.id === lead.programme_id)?.name
+  const guardian = lead.guardians
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
-        <div style={{ fontWeight: 900, fontSize: 14 }}>{timeStr}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 130px 230px', gap: 16, alignItems: 'center', padding: '16px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
+        <div style={{ fontWeight: 600, color: C.ink, fontSize: 14 }}>{timeStr}</div>
         <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-          {lead.programme_id && programmes.find(p => p.id === lead.programme_id) && (
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>
-              {programmes.find(p => p.id === lead.programme_id)!.name}
-            </div>
-          )}
-          <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
+          <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {lead.child_first} {lead.child_last}
+            {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
+            {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+          </button>
+          {progName && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{progName}</div>}
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+            {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
+            <button onClick={onOpenParent} style={{ fontFamily: FONT, fontSize: 12.5, color: C.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+              {guardian.first_name} {guardian.last_name}
+            </button>{' '}· {guardian.phone}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12.5, color: C.muted }}>
             {lead.form_received
-              ? <Tag tone="green">form ✓</Tag>
-              : (
-                <>
-                  <Tag tone="grey">form pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got form</Quiet>
-                </>
-              )}
+              ? <span style={{ color: C.green, fontWeight: 600 }}>Jotform ✓</span>
+              : <>Jotform needed <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12.5, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button></>}
           </div>
         </div>
-        {/* Step 1: arrived */}
+        {/* Arrived */}
         <div>
-          {arrivedDone
-            ? (
-              <span
-                onClick={() => startTransition(() => undoArrived(lead.id, userId))}
-                title="Click to undo"
-                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 800, color: C.green, textTransform: 'uppercase', letterSpacing: 0.5 }}
-              >
-                <span style={{ width: 16, height: 16, borderRadius: 99, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, background: C.green, color: '#fff', border: `1px solid ${C.greenDark}` }}>✓</span>
-                arrived
-              </span>
-            )
-            : (
-              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                <Quiet onClick={() => startTransition(() => markArrived(lead.id, userId))}>① Arrived ✓</Quiet>
-                <Quiet onClick={() => startTransition(() => markNoShow(lead.id, userId))}>no-show</Quiet>
-              </span>
-            )}
+          {arrivedDone ? (
+            <span onClick={() => startTransition(() => undoArrived(lead.id, userId))} title="Click to undo" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, color: C.green, fontSize: 12.5, fontWeight: 600 }}>
+              <span style={{ width: 16, height: 16, borderRadius: '50%', background: C.greenBg, color: C.green, display: 'grid', placeItems: 'center', fontSize: 10 }}>✓</span>
+              Arrived
+            </span>
+          ) : (
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <BtnQuiet onClick={() => startTransition(() => markArrived(lead.id, userId))}>Arrived</BtnQuiet>
+              <BtnQuiet onClick={() => startTransition(() => markNoShow(lead.id, userId))}>No-show</BtnQuiet>
+            </span>
+          )}
         </div>
-        {/* Step 2: outcome */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
+        {/* Outcome */}
+        <div style={{ textAlign: 'right' }}>
           {!arrivedDone
-            ? <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>② outcome — after arrival</span>
+            ? <span style={{ fontSize: 11, fontWeight: 600, color: C.faint, textTransform: 'uppercase', letterSpacing: 0.5 }}>outcome after arrival</span>
             : lossFor
               ? <LossPicker
                   onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
                   onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
                   onCancel={() => setLossFor(false)}
                 />
-              : (
-                <>
-                  <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>
-                  <Quiet onClick={() => setLossFor(true)}>didn't enrol</Quiet>
-                </>
-              )}
+              : <>
+                  <BtnSale onClick={() => setEnrolOpen(true)}>Make the sale</BtnSale>
+                  <BtnGhost onClick={() => setLossFor(true)}>Didn&apos;t enrol</BtnGhost>
+                </>}
         </div>
       </div>
       {enrolOpen && (
-        <EnrolModal
-          lead={lead}
-          onClose={() => setEnrolOpen(false)}
-          onConfirm={({ date, slot, payTaken }) => {
-            setEnrolOpen(false)
-            startTransition(() => makeSale(lead.id, date, slot, payTaken, userId))
-          }}
-        />
+        <EnrolModal lead={lead} onClose={() => setEnrolOpen(false)} onConfirm={({ date, slot, payTaken }) => {
+          setEnrolOpen(false)
+          startTransition(() => makeSale(lead.id, date, slot, payTaken, userId))
+        }} />
       )}
     </>
   )
@@ -840,27 +793,33 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
 }) {
   const [bookingOpen, setBookingOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const guardian = lead.guardians
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
         <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-          <div style={{ marginTop: 3 }}><Tag tone="red">no-show — reach out &amp; re-book</Tag></div>
+          <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {lead.child_first} {lead.child_last}
+            {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
+            {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+          </button>
+          <div style={{ color: '#524b43', fontSize: 13, marginTop: 2 }}>
+            {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
+            <button onClick={onOpenParent} style={{ fontFamily: FONT, fontSize: 13, color: '#524b43', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+              {guardian.first_name} {guardian.last_name}
+            </button>{' '}· {guardian.phone}
+          </div>
+          <div style={{ marginTop: 4 }}><Tag tone="red">no-show — reach out &amp; re-book</Tag></div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <Quiet onClick={() => startTransition(() => logText(lead.id, userId))}>send text</Quiet>
-          <Next onClick={() => setBookingOpen(true)}>Re-book</Next>
+          <BtnQuiet onClick={() => startTransition(() => logText(lead.id, userId))}>Send text</BtnQuiet>
+          <BtnPrimary onClick={() => setBookingOpen(true)}>Re-book</BtnPrimary>
         </div>
       </div>
       {bookingOpen && (
-        <BookingModalWrapper
-          lead={lead}
-          userId={userId}
-          programmes={programmes}
-          onClose={() => setBookingOpen(false)}
-          onDone={() => setBookingOpen(false)}
-        />
+        <BookingModalWrapper lead={lead} userId={userId} programmes={programmes}
+          onClose={() => setBookingOpen(false)} onDone={() => setBookingOpen(false)} />
       )}
     </>
   )
@@ -878,84 +837,37 @@ function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite 
   const [pending, startTransition] = useTransition()
   const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
   const progName = programmes.find(p => p.id === lead.programme_id)?.name
+  const guardian = lead.guardians
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
-      <div style={{ fontWeight: 600, fontSize: 13 }}>{timeStr}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
+      <div style={{ fontWeight: 600, color: C.ink, fontSize: 14 }}>{timeStr}</div>
       <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-        {progName && <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>{progName}</div>}
-        <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
+        <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          {lead.child_first} {lead.child_last}
+          {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
+          {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+        </button>
+        {progName && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{progName}</div>}
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
+        </div>
+        <div style={{ marginTop: 4, fontSize: 12.5, color: C.muted }}>
           {lead.form_received
-            ? <Tag tone="green">form ✓</Tag>
-            : (
-              <>
-                <Tag tone="grey">form pending</Tag>
-                <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
-              </>
-            )}
+            ? <span style={{ color: C.green, fontWeight: 600 }}>Jotform ✓</span>
+            : <>Jotform pending <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12.5, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button></>}
         </div>
       </div>
       <div>
         {lead.confirmation_sent_at
-          ? <Tag tone="green">confirmed ✓</Tag>
-          : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
+          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Confirmed ✓</span>
+          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</BtnPrimary>}
       </div>
     </div>
   )
 }
 
-// ─── Sale row ─────────────────────────────────────────────────────────────────
-function SaleRow({ lead, userId, userRole, onOpen, onOpenParent, showSite }: {
-  lead: Lead & { guardians: Guardian }
-  userId: string
-  userRole: string
-  onOpen: () => void
-  onOpenParent: () => void
-  showSite?: boolean
-}) {
-  const [iclassChecks, setIclassChecks] = useState({ classEnrolled: false, regoIns: false, payment: false })
-  const [pending, startTransition] = useTransition()
-  const allTicked = iclassChecks.classEnrolled && iclassChecks.regoIns && iclassChecks.payment
-  const canVerify = userRole === 'admin' || userRole === 'management'
-
-  return (
-    <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', opacity: pending ? 0.6 : 1 }}>
-      <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-        {lead.first_class_date && lead.first_class && (
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.green, marginTop: 2 }}>
-            first class {lead.first_class_date} · {lead.first_class}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
-        {([
-          ['classEnrolled', 'Class enrolled'] as const,
-          ['regoIns', 'Rego & insurance paid'] as const,
-          ['payment', 'Payment details set up'] as const,
-        ]).map(([key, label]) => (
-          <label key={key} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 11.5, fontWeight: 800, color: '#2B2521', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={iclassChecks[key]}
-              onChange={() => setIclassChecks(c => ({ ...c, [key]: !c[key] }))}
-              style={{ accentColor: C.green }}
-            />
-            {label}
-          </label>
-        ))}
-        {allTicked && canVerify
-          ? <Sale onClick={() => startTransition(() => verifySale(lead.id, userId))}>Admin: verify sale</Sale>
-          : allTicked && !canVerify
-            ? <Tag tone="yellow">Awaiting admin verification</Tag>
-            : <Tag tone="grey">finish checklist</Tag>}
-      </div>
-    </div>
-  )
-}
-
-// ─── Booked row (future trials — not today) ───────────────────────────────────
+// ─── Booked row (future) ──────────────────────────────────────────────────────
 function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
@@ -970,55 +882,54 @@ function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
     ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
     : '—'
   const progName = programmes.find(p => p.id === lead.programme_id)?.name
+  const guardian = lead.guardians
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
       <div>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>{dateStr}</div>
-        <div style={{ fontWeight: 400, fontSize: 11.5, color: C.muted }}>{timeStr}</div>
+        <div style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{dateStr}</div>
+        <div style={{ fontWeight: 400, fontSize: 12, color: C.muted }}>{timeStr}</div>
       </div>
       <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-        {progName && <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>{progName}</div>}
-        <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
-          {lead.form_received
-            ? <Tag tone="green">Jotform ✓</Tag>
-            : lead.form_sent_at
-              ? (
-                <>
-                  <Tag tone="yellow">Jotform pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
-                </>
-              )
-              : null}
+        <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          {lead.child_first} {lead.child_last}
+          {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
+          {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+        </button>
+        {progName && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{progName}</div>}
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
         </div>
+        {lead.form_received
+          ? <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Jotform ✓</span>
+          : lead.form_sent_at
+            ? <span style={{ fontSize: 12, color: C.muted }}>Jotform pending
+                <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button>
+                <button onClick={() => startTransition(() => markFormReceived(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.muted, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Got form</button>
+              </span>
+            : null}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+      <div>
         {lead.status === 'booked'
           ? lead.confirmation_sent_at
-            ? <Tag tone="green">confirmed ✓</Tag>
-            : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>
+            ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Confirmed ✓</span>
+            : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</BtnPrimary>
           : lead.status === 'won'
-            ? <Tag tone="green" solid>enrolled</Tag>
+            ? <Tag tone="green" solid>Enrolled</Tag>
             : lead.status === 'noshow'
-              ? <Tag tone="red" solid>no-show</Tag>
+              ? <Tag tone="red" solid>No-show</Tag>
               : lead.status === 'nurture'
-                ? <Tag tone="yellow">nurture</Tag>
+                ? <Tag tone="yellow">Nurture</Tag>
                 : lead.status === 'lost'
-                  ? <Tag tone="grey">lost</Tag>
-                  : null
-        }
+                  ? <Tag tone="grey">Lost</Tag>
+                  : null}
       </div>
     </div>
   )
 }
 
-// ─── Upcoming row (future new leads) ─────────────────────────────────────────
-function UpcomingRow({ lead, onOpen }: {
-  lead: Lead & { guardians: Guardian }
-  onOpen: () => void
-}) {
+// ─── Upcoming row ─────────────────────────────────────────────────────────────
+function UpcomingRow({ lead, onOpen }: { lead: Lead & { guardians: Guardian }; onOpen: () => void }) {
   const age = ageFrom(lead.dob)
   const guardian = lead.guardians
   const dueStr = lead.next_action_at
@@ -1026,26 +937,69 @@ function UpcomingRow({ lead, onOpen }: {
     : '—'
 
   return (
-    <div
-      onClick={onOpen}
-      style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '9px 12px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer' }}
-    >
+    <div onClick={onOpen} style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, cursor: 'pointer' }}>
+      <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}</div>
       <div>
-        <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}</div>
-      </div>
-      <div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 700, fontSize: 13.5, color: C.ink }}>{lead.child_first} {lead.child_last}</span>
-          {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 11.5 }}>{age} yrs</span>}
+        <div style={{ fontWeight: 600, fontSize: 14, color: C.ink }}>{lead.child_first} {lead.child_last}
+          {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
         </div>
-        <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 400, marginTop: 1 }}>
-          {(lead.relationship ?? '').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
         </div>
       </div>
       <div>
         {lead.last_outcome
           ? <Tag tone="yellow">{lead.last_outcome}</Tag>
-          : <Tag tone="red">not contacted</Tag>}
+          : <Tag tone="red">Not contacted</Tag>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Sale verification row ────────────────────────────────────────────────────
+function SaleRow({ lead, userId, userRole, onOpen, onOpenParent, showSite }: {
+  lead: Lead & { guardians: Guardian }
+  userId: string
+  userRole: string
+  onOpen: () => void
+  onOpenParent: () => void
+  showSite?: boolean
+}) {
+  const [iclassChecks, setIclassChecks] = useState({ classEnrolled: false, regoIns: false, payment: false })
+  const [pending, startTransition] = useTransition()
+  const allTicked = iclassChecks.classEnrolled && iclassChecks.regoIns && iclassChecks.payment
+  const canVerify = userRole === 'admin' || userRole === 'management'
+  const guardian = lead.guardians
+
+  return (
+    <div style={{ padding: '13px 22px', borderTop: `1px solid ${C.line}`, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', opacity: pending ? 0.6 : 1 }}>
+      <div>
+        <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          {lead.child_first} {lead.child_last}
+          {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+        </button>
+        <div style={{ fontSize: 13, color: '#524b43', marginTop: 2 }}>
+          {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
+          <button onClick={onOpenParent} style={{ fontFamily: FONT, fontSize: 13, color: '#524b43', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {guardian.first_name} {guardian.last_name}
+          </button>{' '}· {guardian.phone}
+        </div>
+        {lead.first_class_date && lead.first_class && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.green, marginTop: 2 }}>first class {lead.first_class_date} · {lead.first_class}</div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
+        {([['classEnrolled', 'Class enrolled'], ['regoIns', 'Rego & insurance paid'], ['payment', 'Payment details set up']] as [keyof typeof iclassChecks, string][]).map(([key, label]) => (
+          <label key={key} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12.5, fontWeight: 600, color: C.body, cursor: 'pointer' }}>
+            <input type="checkbox" checked={iclassChecks[key]} onChange={() => setIclassChecks(c => ({ ...c, [key]: !c[key] }))} style={{ accentColor: C.green }} />
+            {label}
+          </label>
+        ))}
+        {allTicked && canVerify
+          ? <BtnSale onClick={() => startTransition(() => verifySale(lead.id, userId))}>Verify sale</BtnSale>
+          : allTicked && !canVerify
+            ? <Tag tone="yellow">Awaiting admin verification</Tag>
+            : <Tag tone="grey">Finish checklist</Tag>}
       </div>
     </div>
   )
@@ -1095,12 +1049,12 @@ export default function TodayClient({
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [siteFilter, setSiteFilter] = useState<'all' | 'coolaroo' | 'altona_north'>('all')
-  const [pending, startTransition] = useTransition()
+  const [railSite, setRailSite] = useState<'all' | 'coolaroo' | 'altona_north'>('all')
+  const [, startTransition] = useTransition()
 
   const isMultiSite = appUser.role === 'admin' || appUser.role === 'management'
   const matchesSite = (l: Lead) => siteFilter === 'all' || l.site === siteFilter
 
-  // Compute tab date boundaries from todayStr
   const tomorrowStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
   const dayAfterTomStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10) })()
   const dow = new Date(todayStr + 'T12:00:00').getDay()
@@ -1129,25 +1083,17 @@ export default function TodayClient({
     }),
   }
 
-  // New leads: never-contacted/due first; snoozed (called with a future reminder) sink to the bottom
   const newCallNow = newLeads.filter(l => !l.contacted || !l.next_action_at)
-  const newScheduled = newLeads
-    .filter(l => l.contacted && l.next_action_at)
-    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
+  const newScheduled = newLeads.filter(l => l.contacted && l.next_action_at).sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const newLeadsSorted = [...newCallNow, ...newScheduled]
 
-  // All leads for family lookups
   const allLeads = [...newLeads, ...bookedLeads, ...noShows, ...unverifiedSales, ...upcomingNewLeads]
-  // Deduplicate by id
   const allLeadsMap = new Map(allLeads.map(l => [l.id, l]))
   const allLeadsUniq = Array.from(allLeadsMap.values())
-
   const openLead = openLeadId ? allLeadsMap.get(openLeadId) ?? null : null
 
-  // Checklist state (optimistic)
   const completedIds = new Set(completions.map(c => c.item_id))
   const [localCompleted, setLocalCompleted] = useState<Set<string>>(new Set(completedIds))
-
   function handleToggleChecklist(itemId: string) {
     const nowCompleted = !localCompleted.has(itemId)
     setLocalCompleted(prev => {
@@ -1159,366 +1105,302 @@ export default function TodayClient({
     startTransition(() => toggleChecklist(itemId, appUser.id, nowCompleted))
   }
 
-  // Target bar
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
   const goal = target?.net_growth_goal ?? 0
+  const salesGoal = target?.sales_goal ?? 0
   const actual = verifiedCount
   const toGo = Math.max(0, goal - actual)
   const pct = goal > 0 ? Math.min(100, Math.round((actual / goal) * 100)) : 0
-  const siteName = appUser.site === 'coolaroo' ? 'Coolaroo' : appUser.site === 'altona_north' ? 'Altona North' : 'All Sites'
   const month = monthName(todayStr)
-
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
 
-  // Half-gauge SVG component (inline)
-  const gaugeColor = pct >= 100 ? C.green : C.yellow
-  const gaugeStroke = pct >= 100 ? C.greenDark : '#7A5C07'
-  const gR = 52, gCx = 70, gCy = 66, gSw = 14
-  const clampPct = Math.min(100, Math.max(0, pct))
-  const gAngle = Math.PI * (1 - clampPct / 100)
-  const gPx = gCx + gR * Math.cos(gAngle)
-  const gPy = gCy - gR * Math.sin(gAngle)
-  const gLargeArc = clampPct > 50 ? 1 : 0
+  // Half-gauge SVG (semicircle, dasharray-based like reference)
+  const ARC_TOTAL = 308 // circumference of r=98 semicircle ≈ π×98
+  const gaugeColor = pct >= 100 ? C.green : C.yellowGauge
+  const dashFilled = Math.round((pct / 100) * ARC_TOTAL)
+
+  const segtabStyle = (key: string): React.CSSProperties => ({
+    fontFamily: FONT, fontSize: 12.5, color: trialTab === key ? C.ink : C.muted,
+    textDecoration: 'none', padding: '5px 11px', borderRadius: 6,
+    background: trialTab === key ? '#f3efe9' : 'none',
+    fontWeight: trialTab === key ? 600 : 400,
+    border: 'none', cursor: 'pointer',
+  })
+
+  const railToggleStyle = (key: string): React.CSSProperties => ({
+    fontFamily: FONT, border: 'none',
+    background: railSite === key ? '#fff' : 'none',
+    fontSize: 11, color: railSite === key ? C.ink : C.muted,
+    padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+    fontWeight: railSite === key ? 600 : 500,
+    boxShadow: railSite === key ? '0 1px 2px rgba(0,0,0,.07)' : 'none',
+  })
+
+  const siteToggleStyle = (key: string): React.CSSProperties => ({
+    fontFamily: FONT, border: 'none',
+    background: siteFilter === key ? '#fff' : 'none',
+    fontSize: 12, color: siteFilter === key ? C.ink : C.muted,
+    padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+    fontWeight: siteFilter === key ? 600 : 500,
+    boxShadow: siteFilter === key ? '0 1px 2px rgba(0,0,0,.07)' : 'none',
+  })
 
   return (
-    <div style={{ fontFamily: FONT }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+    <div style={{ fontFamily: FONT, display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
 
-        {/* ── LEFT COLUMN ── */}
-        <div>
+      {/* ── MAIN COLUMN ── */}
+      <main>
 
-      {/* ── New leads panel ── */}
-      <Panel
-        head="New leads — call &amp; book"
-        badge={<Tag tone="yellow" solid>act now</Tag>}
-        sub={
-          <span style={{ fontSize: 12, fontWeight: 400, color: newLeads.length ? C.yellow : C.green }}>
-            {newLeads.length ? `${newLeads.length} waiting` : 'all booked'}
-          </span>
-        }
-      >
-        {newLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: isMultiSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, padding: '6px 14px', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={colHead}>Received</span>
-            <span style={colHead}>Child / guardian</span>
-            <span style={colHead}>Status</span>
-            {isMultiSite && <span style={colHead}>Site</span>}
-            <span style={{ ...colHead, textAlign: 'right' }}>Action</span>
+        {/* Leads card */}
+        <Card
+          head="Leads"
+          sub="Call and book a trial — longest waiting at the top"
+          right={newLeads.length > 0 ? <CountPill>{newLeads.length} to book</CountPill> : undefined}
+        >
+          {newLeads.length === 0 ? (
+            <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No new leads — great work!</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 120, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Received</th>
+                  <th style={{ fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Child &amp; guardian</th>
+                  <th style={{ width: 180, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Status</th>
+                  {isMultiSite && <th style={{ width: 110, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Site</th>}
+                  <th style={{ borderBottom: `1px solid ${C.line}` }} />
+                </tr>
+              </thead>
+              <tbody>
+                {newLeadsSorted.map(l => (
+                  <NewRow
+                    key={l.id}
+                    lead={l}
+                    scheduled={!!(l.contacted && l.next_action_at)}
+                    userId={appUser.id}
+                    programmes={programmes}
+                    showSite={isMultiSite}
+                    onOpen={() => setOpenLeadId(l.id)}
+                    onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
+                    onBooked={() => {}}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        {/* Trials card */}
+        <Card
+          head="Trials"
+          sub="Mark arrival, then the outcome"
+          right={todayTrials.length > 0 ? `${todayTrials.length} today` : undefined}
+        >
+          {/* Seg bar: tabs left, site toggle right */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 22px 14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {([
+                ['today', 'Today'],
+                ['tomorrow', 'Tomorrow'],
+                ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
+                ['next_week', 'Next week'],
+                ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
+                ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
+                ['custom', 'Custom…'],
+              ] as [string, string][]).map(([key, label]) => (
+                <button key={key} onClick={() => setTrialTab(key as typeof trialTab)} style={segtabStyle(key)}>{label}</button>
+              ))}
+            </div>
+            {isMultiSite && (
+              <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2 }}>
+                {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
+                  <button key={s} onClick={() => setSiteFilter(s)} style={siteToggleStyle(s)}>
+                    {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-        {newLeads.length === 0 && (
-          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No new leads — great work!</div>
-        )}
-        {newLeadsSorted.map(l => (
-          <NewRow
-            key={l.id}
-            lead={l}
-            scheduled={l.contacted && !!l.next_action_at}
-            userId={appUser.id}
-            programmes={programmes}
-            showSite={isMultiSite}
-            onOpen={() => setOpenLeadId(l.id)}
-            onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-            onBooked={() => {/* revalidation happens via server action */ }}
-          />
-        ))}
-      </Panel>
 
-      {/* ── Trials panel (tabbed) ── */}
-      <Panel
-        head="Trials"
-        badge={todayTrials.length > 0 ? <Tag tone="green" solid>{todayTrials.length} today</Tag> : undefined}
-      >
-        {/* Tab bar */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0, borderBottom: `1px solid ${C.lineSoft}`, background: '#FCFAF7' }}>
+          {/* Custom date range */}
+          {trialTab === 'custom' && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 22px', borderTop: `1px solid ${C.line}` }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>From</span>
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line2}`, fontSize: 12, borderRadius: 6 }} />
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>to</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line2}`, fontSize: 12, borderRadius: 6 }} />
+            </div>
+          )}
+
+          {/* Tab content */}
+          {trialTab === 'today' && (
+            trialsByTab.today.length === 0
+              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials today.</div>
+              : trialsByTab.today.map(l => (
+                  <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities} programmes={programmes} showSite={isMultiSite}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))
+          )}
+
+          {trialTab === 'noshows' && (
+            trialsByTab.noshows.length === 0
+              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No no-shows.</div>
+              : trialsByTab.noshows.map(l => (
+                  <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))
+          )}
+
+          {trialTab === 'tomorrow' && (
+            trialsByTab.tomorrow.length === 0
+              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials tomorrow.</div>
+              : trialsByTab.tomorrow.map(l => (
+                  <TomorrowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))
+          )}
+
+          {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
+            trialsByTab[trialTab].length === 0
+              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials in this period.</div>
+              : trialsByTab[trialTab].map(l => (
+                  <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))
+          )}
+        </Card>
+
+        {/* Sales to process */}
+        {unverifiedSales.length > 0 && (
+          <Card
+            head="Sales to process"
+            sub="Enter in iClassPro, tick each item, then admin verifies"
+            right={<Tag tone="yellow">pending admin</Tag>}
+          >
+            {unverifiedSales.map(l => (
+              <SaleRow key={l.id} lead={l} userId={appUser.id} userRole={appUser.role} showSite={isMultiSite}
+                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+            ))}
+          </Card>
+        )}
+
+        {/* Follow-ups due */}
+        <Card
+          head="Follow-ups due"
+          sub="Scheduled chase list"
+          right={`${upcomingNewLeads.length} scheduled`}
+        >
+          {upcomingNewLeads.length === 0
+            ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>Nothing scheduled. When you log a call outcome, set a follow-up time and it appears here.</div>
+            : upcomingNewLeads.map(l => <UpcomingRow key={l.id} lead={l} onOpen={() => setOpenLeadId(l.id)} />)
+          }
+        </Card>
+
+        {/* Daily checklist */}
+        <Card
+          head="Daily checklist"
+          sub="Front of house"
+          right={`${doneCount} of ${checklistItems.length} done`}
+        >
+          {checklistItems.length === 0 && (
+            <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No checklist items configured.</div>
+          )}
+          {checklistItems.map(item => {
+            const done = localCompleted.has(item.id)
+            return (
+              <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 22px', borderTop: `1px solid ${C.line}`, fontSize: 13.5, color: C.body, cursor: 'pointer' }}>
+                <span style={{
+                  width: 17, height: 17, border: done ? 'none' : `1.5px solid ${C.line2}`,
+                  borderRadius: 4, flexShrink: 0, display: 'grid', placeItems: 'center',
+                  background: done ? C.green : 'none',
+                }}>
+                  {done && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#fff" strokeWidth="1.8" fill="none" strokeLinecap="round" /></svg>}
+                </span>
+                <input type="checkbox" checked={done} onChange={() => handleToggleChecklist(item.id)} style={{ display: 'none' }} />
+                <span style={{ textDecoration: done ? 'line-through' : 'none', color: done ? C.muted : C.body }}>{item.label}</span>
+                {done && <span style={{ fontSize: 11, color: C.faint, marginLeft: 'auto' }}>{appUser.name} · today</span>}
+              </label>
+            )
+          })}
+        </Card>
+
+      </main>
+
+      {/* ── RIGHT RAIL ── */}
+      <aside style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+        {/* Target widget */}
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: RADIUS, padding: 20 }}>
+          <div style={{ fontSize: 10.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: C.faint, fontWeight: 600 }}>{month} {new Date(todayStr + 'T12:00:00').getFullYear()}</div>
+
+          {/* Site toggle */}
+          {isMultiSite && (
+            <div style={{ display: 'flex', width: '100%', margin: '10px 0 2px', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2 }}>
+              {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
+                <button key={s} onClick={() => setRailSite(s)} style={{ ...railToggleStyle(s), flex: 1, fontSize: 11, padding: '5px 4px' }}>
+                  {s === 'all' ? 'All' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Half gauge */}
+          <svg width="100%" height="132" viewBox="0 0 240 138" style={{ display: 'block', margin: '8px auto 2px' }}>
+            <path d="M22,128 A98,98 0 0 1 218,128" fill="none" stroke="#f0ebe4" strokeWidth="14" strokeLinecap="round" />
+            {pct > 0 && (
+              <path d="M22,128 A98,98 0 0 1 218,128" fill="none" stroke={gaugeColor} strokeWidth="14" strokeLinecap="round"
+                strokeDasharray={`${dashFilled} ${ARC_TOTAL}`} />
+            )}
+            <text x="120" y="112" textAnchor="middle" fontSize="44" fontWeight="800" fill={C.head} fontFamily={FONT}>+{actual}</text>
+            <text x="120" y="133" textAnchor="middle" fontSize="12.5" fontWeight="600" fill={C.muted} fontFamily={FONT}>
+              of +{goal} target · {toGo} to go
+            </text>
+          </svg>
+
+          {opDays > 0 && toGo > 0 && (
+            <div style={{ fontSize: 12, color: C.muted, textAlign: 'center' }}>
+              {opDays} operating days left · about {(toGo / opDays).toFixed(1)} a day
+            </div>
+          )}
+          {pct >= 100 && (
+            <div style={{ fontSize: 12, color: C.green, fontWeight: 600, textAlign: 'center' }}>Target reached!</div>
+          )}
+
+          {/* Ledger */}
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '7px 0' }}>
+              <span style={{ fontSize: 13, color: C.body }}>Sales</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.green }}>{salesGoal > 0 ? `+${salesGoal}` : '—'}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '7px 0' }}>
+              <span style={{ fontSize: 13, color: C.body }}>Cancellations</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.red }}>—</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '11px 0 0', marginTop: 5, borderTop: `1px solid ${C.line}` }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Net growth</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: actual > 0 ? C.green : C.ink }}>+{actual}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Today at a glance */}
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: RADIUS, padding: 20 }}>
+          <div style={{ fontSize: 10.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, marginBottom: 12 }}>Today at a glance</div>
           {([
-            ['today', 'Today', trialsByTab.today.length],
-            ['tomorrow', 'Tomorrow', trialsByTab.tomorrow.length],
-            ['this_week', 'This week', trialsByTab.this_week.length],
-            ['next_week', 'Next week', trialsByTab.next_week.length],
-            ['this_month', 'This month', trialsByTab.this_month.length],
-            ['noshows', 'No-shows', trialsByTab.noshows.length],
-            ['custom', 'Custom…', trialsByTab.custom.length],
-          ] as [string, string, number][]).map(([key, label, count]) => (
-            <button key={key} onClick={() => setTrialTab(key as typeof trialTab)}
-              style={{
-                fontFamily: FONT, fontWeight: 800, fontSize: 11.5, cursor: 'pointer',
-                padding: '8px 12px', border: 'none', borderBottom: `2px solid ${trialTab === key ? C.orange : 'transparent'}`,
-                background: 'transparent', color: trialTab === key ? C.orange : C.muted,
-                whiteSpace: 'nowrap',
-              }}>
-              {key === 'custom' ? label : (count > 0 ? `${label} (${count})` : label)}
-            </button>
+            ['New leads to book', newLeads.length, newLeads.length > 0],
+            ['Leads received this month', null, false],
+            ['Trials today', todayTrials.length, false],
+            ['Sales today', 0, false],
+          ] as [string, number | null, boolean][]).map(([label, val, warn]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${C.line}` }}>
+              <span style={{ fontSize: 13, color: C.body }}>{label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: warn ? C.orange : C.ink }}>{val ?? '—'}</span>
+            </div>
           ))}
         </div>
 
-        {/* Site filter (admin/management only) */}
-        {isMultiSite && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Site:</span>
-            {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
-              <button key={s} onClick={() => setSiteFilter(s)}
-                style={{
-                  fontFamily: FONT, fontWeight: 700, fontSize: 11.5, cursor: 'pointer',
-                  padding: '4px 10px', borderRadius: 4,
-                  background: siteFilter === s ? C.ink : '#fff', color: siteFilter === s ? '#fff' : C.ink,
-                  border: `1px solid ${siteFilter === s ? C.ink : C.line}`,
-                }}>
-                {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
-              </button>
-            ))}
-          </div>
-        )}
+      </aside>
 
-        {/* Custom date pickers */}
-        {trialTab === 'custom' && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>From</span>
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line}`, fontSize: 12 }} />
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>to</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line}`, fontSize: 12 }} />
-          </div>
-        )}
-
-        {/* Today tab: arrived/outcome flow */}
-        {trialTab === 'today' && (
-          <>
-            {trialsByTab.today.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>① Arrived?</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>② Outcome</span>
-              </div>
-            )}
-            {trialsByTab.today.length === 0 && (
-              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
-            )}
-            {trialsByTab.today.map(l => (
-              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities} programmes={programmes} showSite={isMultiSite}
-                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-            ))}
-          </>
-        )}
-
-        {/* No-shows tab */}
-        {trialTab === 'noshows' && (
-          <>
-            {trialsByTab.noshows.length > 0 && (
-              <div style={{ padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 900, color: C.red, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — contact &amp; re-book</span>
-              </div>
-            )}
-            {trialsByTab.noshows.length === 0 && (
-              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No no-shows.</div>
-            )}
-            {trialsByTab.noshows.map(l => (
-              <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
-                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-            ))}
-          </>
-        )}
-
-        {/* Tomorrow tab */}
-        {trialTab === 'tomorrow' && (
-          <>
-            {trialsByTab.tomorrow.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
-              </div>
-            )}
-            {trialsByTab.tomorrow.length === 0 && (
-              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials tomorrow.</div>
-            )}
-            {trialsByTab.tomorrow.map(l => (
-              <TomorrowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
-                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-            ))}
-          </>
-        )}
-
-        {/* Other tabs: booked row with date + status */}
-        {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
-          <>
-            {trialsByTab[trialTab].length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Date / time</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Status / action</span>
-              </div>
-            )}
-            {trialsByTab[trialTab].length === 0 && (
-              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials in this period.</div>
-            )}
-            {trialsByTab[trialTab].map(l => (
-              <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
-                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-            ))}
-          </>
-        )}
-      </Panel>
-
-      {/* ── Sales to process panel ── */}
-      {unverifiedSales.length > 0 && (
-        <Panel
-          head="💰 Sales to process — enter in iClassPro"
-          badge={<Tag tone="yellow">pending admin</Tag>}
-          sub={<span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>tick each, then admin verifies the sale</span>}
-        >
-          {unverifiedSales.map(l => (
-            <SaleRow
-              key={l.id}
-              lead={l}
-              userId={appUser.id}
-              userRole={appUser.role}
-              showSite={isMultiSite}
-              onOpen={() => setOpenLeadId(l.id)}
-              onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-            />
-          ))}
-        </Panel>
-      )}
-
-      {/* ── Upcoming actions panel ── */}
-      <Panel
-        head="Upcoming actions — chase list"
-        sub={<span style={{ fontSize: 11.5, fontWeight: 400, color: C.muted }}>{upcomingNewLeads.length} scheduled</span>}
-      >
-        {upcomingNewLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Follow-up due</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last outcome</span>
-          </div>
-        )}
-        {upcomingNewLeads.length === 0
-          ? <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions. Log a follow-up after calling to schedule reminders here.</div>
-          : upcomingNewLeads.map(l => (
-            <UpcomingRow
-              key={l.id}
-              lead={l}
-              onOpen={() => setOpenLeadId(l.id)}
-            />
-          ))
-        }
-      </Panel>
-
-      {/* ── Daily checklist ── */}
-      <Panel
-        head="Daily front-of-house checklist"
-        sub={
-          <span style={{ fontSize: 11.5, fontWeight: 400, color: doneCount === checklistItems.length && checklistItems.length > 0 ? C.green : C.muted }}>
-            {doneCount}/{checklistItems.length} signed off
-          </span>
-        }
-      >
-        {checklistItems.length === 0 && (
-          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No checklist items configured.</div>
-        )}
-        {checklistItems.map(item => {
-          const done = localCompleted.has(item.id)
-          return (
-            <label key={item.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '9px 14px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={done}
-                onChange={() => handleToggleChecklist(item.id)}
-                style={{ width: 16, height: 16, accentColor: C.green }}
-              />
-              <span style={{ fontSize: 13, fontWeight: 400, color: done ? C.muted : '#2B2521', textDecoration: done ? 'line-through' : 'none' }}>
-                {item.label}
-              </span>
-              {done && (
-                <span style={{ fontSize: 10.5, fontWeight: 400, color: C.muted, marginLeft: 'auto' }}>
-                  {appUser.name} · today
-                </span>
-              )}
-            </label>
-          )
-        })}
-      </Panel>
-
-        </div>{/* end left column */}
-
-        {/* ── RIGHT RAIL ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Target widget */}
-          <section style={{ background: C.card, borderRadius: 12, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{month} target</div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginTop: 1 }}>{siteName}</div>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: pct >= 100 ? C.green : C.yellow }}>
-                {pct >= 100 ? '✓ On target' : `${toGo} to go`}
-              </div>
-            </div>
-            {/* Half gauge */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 0' }}>
-              <svg width={140} height={82} viewBox="0 0 140 82">
-                {/* Track */}
-                <path
-                  d={`M ${gCx - gR},${gCy} A ${gR},${gR} 0 0,1 ${gCx + gR},${gCy}`}
-                  fill="none" stroke={C.sand} strokeWidth={gSw} strokeLinecap="round"
-                />
-                {/* Fill */}
-                {clampPct > 0 && (
-                  <path
-                    d={`M ${gCx - gR},${gCy} A ${gR},${gR} 0 ${gLargeArc},1 ${gPx},${gPy}`}
-                    fill="none" stroke={gaugeColor} strokeWidth={gSw} strokeLinecap="round"
-                  />
-                )}
-                <text x={gCx} y={gCy - 6} textAnchor="middle" fontSize="24" fontWeight="900" fill={C.ink}>{pct}%</text>
-                <text x={gCx} y={gCy + 10} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={C.muted}>of target</text>
-              </svg>
-            </div>
-            {/* Ledger */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${C.lineSoft}`, margin: '4px 0 0' }}>
-              {([
-                ['Net growth', `+${actual}`, actual >= goal ? C.green : C.ink],
-                ['Target', `+${goal}`, C.muted],
-                ['Ops days left', String(opDays), C.muted],
-              ] as [string, string, string][]).map(([label, val, clr]) => (
-                <div key={label} style={{ padding: '10px 12px', borderRight: `1px solid ${C.lineSoft}`, textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: clr }}>{val}</div>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
-                </div>
-              ))}
-            </div>
-            {opDays > 0 && toGo > 0 && (
-              <div style={{ padding: '8px 14px', borderTop: `1px solid ${C.lineSoft}`, fontSize: 11, fontWeight: 600, color: C.muted }}>
-                ≈{(toGo / opDays).toFixed(1)} sales per day needed
-              </div>
-            )}
-          </section>
-
-          {/* Today at a glance */}
-          <section style={{ background: C.card, borderRadius: 12, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
-              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.ink }}>Today at a glance</h3>
-            </div>
-            {([
-              ['New leads', newLeads.length, newLeads.length > 0 ? 'red' : 'green'],
-              ['Trials today', todayTrials.length, 'grey'],
-              ['No-shows', noShows.length, noShows.length > 0 ? 'red' : 'green'],
-              ['Unverified sales', unverifiedSales.length, unverifiedSales.length > 0 ? 'yellow' : 'green'],
-              ['Checklist', `${doneCount}/${checklistItems.length}`, doneCount === checklistItems.length && checklistItems.length > 0 ? 'green' : 'grey'],
-            ] as [string, number | string, TagTone][]).map(([label, val, tone]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 18px', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{label}</span>
-                <Tag tone={tone}>{val}</Tag>
-              </div>
-            ))}
-          </section>
-
-        </div>{/* end right rail */}
-
-      </div>{/* end two-col grid */}
-
-      {/* ── Profile slide-in ── */}
+      {/* Profile slide-in */}
       {openLead && (
         <ProfilePanel
           lead={openLead}
@@ -1537,7 +1419,7 @@ export default function TodayClient({
         />
       )}
 
-      {/* ── Parent profile slide-in ── */}
+      {/* Parent profile slide-in */}
       {openParentGuardianId && (
         <ParentProfile
           guardianId={openParentGuardianId}

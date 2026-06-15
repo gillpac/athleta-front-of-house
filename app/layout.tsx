@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
-import { Nunito } from 'next/font/google'
+import { Nunito_Sans } from 'next/font/google'
 
-const nunito = Nunito({
+const nunitoSans = Nunito_Sans({
   subsets: ['latin'],
+  axes: ['opsz'],
   weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 })
@@ -20,13 +21,13 @@ export default function RootLayout({
   return (
     <html lang="en-AU">
       <body
-        className={nunito.className}
+        className={nunitoSans.className}
         style={{
           margin: 0,
           padding: 0,
-          backgroundColor: '#F6F3EE',
-          color: '#17130E',
-          fontFamily: "'Nunito', system-ui, sans-serif",
+          backgroundColor: '#f6f4f1',
+          color: '#4a453f',
+          fontFamily: "'Nunito Sans', -apple-system, system-ui, sans-serif",
           minHeight: '100vh',
         }}
       >
