@@ -19,7 +19,6 @@ import {
   logEmail,
   resendForm,
   markFormReceived,
-  sendJotform,
 } from './actions'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -54,40 +53,7 @@ function formatTime(isoStr: string): string {
 }
 
 function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function fmtDateTime(isoStr: string | null): string {
-  if (!isoStr) return '—'
-  return new Date(isoStr).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-}
-
-const PROFILE_KNOWN_FIELDS = new Set([
-  'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
-  'source', 'referrer_name', 'utm_source', 'utm_medium', 'utm_campaign',
-  'child_first_1', 'child_last_1', 'dob_1', 'gender_1', 'programme_name_1', 'interest_1',
-  'child_first_2', 'child_last_2', 'dob_2', 'gender_2', 'programme_name_2', 'interest_2',
-  'child_first_3', 'child_last_3', 'dob_3', 'gender_3', 'programme_name_3', 'interest_3',
-  'child_first_4', 'child_last_4', 'dob_4', 'gender_4', 'programme_name_4', 'interest_4',
-])
-
-const FIELD_LABEL_OVERRIDES: Record<string, string> = {
-  prefDays: 'Preferred days',
-  preferred_day: 'Preferred day',
-  prior: 'Prior experience',
-  notes: 'Notes',
-  childName: 'Child name',
-  guardian: 'Guardian',
-  mobile: 'Mobile',
-  interest: 'Interest',
-}
-
-function fmtFieldLabel(key: string): string {
-  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
-  return key
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase())
+  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
 }
 
 function waitMins(receivedAt: string): number {
@@ -258,57 +224,69 @@ function WhoCell({ lead, onOpen, onOpenParent }: {
 const CALL_OUTCOMES = ['No answer', 'Left voicemail', 'Spoke — call back later', 'Spoke — booking now']
 const NEEDS_FOLLOWUP = new Set(['No answer', 'Left voicemail', 'Spoke — call back later'])
 
-function dateAt9am(daysAhead: number): string {
+function followUpDate(daysAhead: number): string {
   const d = new Date()
   d.setDate(d.getDate() + daysAhead)
   d.setHours(9, 0, 0, 0)
   return d.toISOString()
 }
 
-function dateStrFromNow(daysAhead: number): string {
+function tomorrowDateStr(): string {
   const d = new Date()
-  d.setDate(d.getDate() + daysAhead)
-  return d.toISOString().slice(0, 10)
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
 }
 
 function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string) => void; onClose: () => void }) {
   const [step, setStep] = useState<string | null>(null)
-  const [customDate, setCustomDate] = useState(dateStrFromNow(1))
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(1) // 1 = tomorrow
-
-  function getIso(): string {
-    if (selectedPreset !== null) return dateAt9am(selectedPreset)
-    const d = new Date(customDate + 'T09:00:00')
-    return d.toISOString()
-  }
+  const [customDate, setCustomDate] = useState(tomorrowDateStr())
 
   if (step) {
-    const PRESETS: [string, number][] = [['Tomorrow', 1], ['Two days', 2], ['Three days', 3], ['Next week', 7]]
     return (
       <div style={{
         position: 'absolute', top: '105%', left: 0,
         background: '#fff', border: `1px solid ${C.line}`,
-        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 240, padding: 12,
+        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 260, padding: 12,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
-          {PRESETS.map(([label, days]) => (
-            <button key={days} onClick={() => { setSelectedPreset(days); setCustomDate(dateStrFromNow(days)) }}
-              style={{ padding: '7px 6px', fontSize: 12, fontWeight: 700, fontFamily: FONT, cursor: 'pointer', border: `1px solid ${selectedPreset === days ? C.orange : C.line}`, background: selectedPreset === days ? C.orange : '#fff', color: selectedPreset === days ? '#fff' : C.ink }}>
-              {label}
-            </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+          {([
+            ['Tomorrow', 1],
+            ['Two days', 2],
+            ['Three days', 3],
+            ['Next week', 7],
+          ] as [string, number][]).map(([label, days]) => (
+            <button
+              key={label}
+              onClick={() => onPick(step, followUpDate(days))}
+              style={{
+                fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                padding: '8px 6px', borderRadius: 4,
+                background: C.ink, color: '#fff',
+                border: `1px solid ${C.ink}`,
+              }}
+            >{label}</button>
           ))}
         </div>
-        <input
-          type="date"
-          value={customDate}
-          min={dateStrFromNow(1)}
-          onChange={e => { setCustomDate(e.target.value); setSelectedPreset(null) }}
-          style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
-        />
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Custom date</div>
+          <input
+            type="date"
+            value={customDate}
+            min={tomorrowDateStr()}
+            onChange={e => setCustomDate(e.target.value)}
+            style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, boxSizing: 'border-box' as const }}
+          />
+        </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Cancel</button>
-          <button onClick={() => onPick(step, getIso())}
+          <button
+            onClick={() => {
+              if (customDate) {
+                const d = new Date(customDate + 'T09:00:00')
+                onPick(step, d.toISOString())
+              }
+            }}
             style={{ flex: 2, padding: '7px', border: 'none', background: C.ink, color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             Log &amp; set reminder
           </button>
@@ -532,7 +510,7 @@ function EnrolModal({ lead, onClose, onConfirm }: {
 }
 
 // ─── Profile slide-in ─────────────────────────────────────────────────────────
-function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead, activities }: {
+function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead }: {
   lead: Lead & { guardians: Guardian }
   allLeads: (Lead & { guardians: Guardian })[]
   onClose: () => void
@@ -540,7 +518,6 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   programmes: Programme[]
   onOpenParent: () => void
   onSwitchLead: (id: string) => void
-  activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
 }) {
   const [note, setNote] = useState('')
   const [callOpen, setCallOpen] = useState(false)
@@ -563,9 +540,9 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 110 }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 40 }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(23,19,14,.4)' }} onClick={onClose} />
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
+        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 430, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>
@@ -618,73 +595,32 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             {callOpen && <CallMenu onPick={handleCall} onClose={() => setCallOpen(false)} />}
           </div>
 
-          {/* Jotform status */}
+          {/* form + programme */}
           <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {lead.form_received
-              ? <Tag tone="green">Jotform ✓</Tag>
-              : lead.form_sent_at
-                ? (
-                  <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
-                    <Tag tone="yellow">Jotform pending</Tag>
-                    <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet>
-                    <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet>
-                  </span>
-                )
-                : <Quiet onClick={() => startTransition(() => sendJotform(lead.id, userId))}>Send Jotform</Quiet>
-            }
+              ? <Tag tone="green">form ✓</Tag>
+              : (
+                <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
+                  <Tag tone="yellow">form pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend form</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got form ✓</Quiet>
+                </span>
+              )}
             {lead.status === 'won' && (
               lead.verified_at ? <Tag tone="green" solid>sale ✓</Tag> : <Tag tone="yellow">sale — pending admin</Tag>
             )}
           </div>
 
-          {/* structured child / guardian info */}
-          {(() => {
-            const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
-            const extraFields = lead.enquiry_raw
-              ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !PROFILE_KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
-              : []
-            const InfoRow = ({ label, value, color }: { label: string; value: string; color?: string }) => (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <span style={{ color: C.muted }}>{label}</span>
-                <span style={{ color: color ?? C.ink, fontWeight: 500 }}>{value}</span>
+          {/* enquiry details */}
+          <h4 style={h4s}>Original enquiry — received {formatDate(lead.received_at)}</h4>
+          <div style={{ background: C.bg, border: `1px solid ${C.lineSoft}`, borderRadius: 4, padding: '10px 12px' }}>
+            {(lead.enquiry_raw ? Object.entries(lead.enquiry_raw) : []).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', fontSize: 12.5, fontWeight: 700, padding: '3px 0', borderBottom: `1px dashed ${C.lineSoft}` }}>
+                <span style={{ width: 150, color: C.muted }}>{k}</span>
+                <span style={{ color: '#2B2521' }}>{String(v)}</span>
               </div>
-            )
-            const SectionHead = ({ title }: { title: string }) => (
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 18, marginBottom: 6 }}>{title}</div>
-            )
-            return (
-              <>
-                <SectionHead title="Child" />
-                <InfoRow label="Date of birth" value={lead.dob ? `${new Date(lead.dob).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} (${ageFrom(lead.dob)} yrs)` : '—'} />
-                {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
-                <InfoRow label="Source" value={lead.source ?? '—'} />
-                {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
-                <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : '✗ Pending'} color={lead.form_received ? C.green : C.red} />
-
-                <SectionHead title="Guardian" />
-                <InfoRow label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
-                <InfoRow label="Phone" value={guardian.phone} />
-                {guardian.email && <InfoRow label="Email" value={guardian.email} />}
-                {guardian.preferred_contact && <InfoRow label="Preferred contact" value={guardian.preferred_contact} />}
-
-                {lead.trial_at && (
-                  <>
-                    <SectionHead title="Trial" />
-                    <InfoRow label="Booked for" value={fmtDateTime(lead.trial_at)} />
-                  </>
-                )}
-
-                {extraFields.length > 0 && (
-                  <>
-                    <SectionHead title="Additional info" />
-                    {extraFields.map(([k, v]) => (
-                      <InfoRow key={k} label={fmtFieldLabel(k)} value={String(v)} />
-                    ))}
-                  </>
-                )}
-              </>
-            )
-          })()}
+            ))}
+          </div>
 
           {/* note input */}
           <h4 style={h4s}>Add a note</h4>
@@ -698,23 +634,6 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             }}>Save</Next>
           </div>
           {pending && <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginTop: 4 }}>Saving…</div>}
-
-          {/* timeline */}
-          {(() => {
-            const acts = activities.filter(a => a.lead_id === lead.id)
-            if (!acts.length) return null
-            return (
-              <>
-                <h4 style={{ margin: '18px 0 8px', fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.2, color: C.muted }}>Timeline</h4>
-                {acts.map((a, i) => (
-                  <div key={i} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
-                    <div style={{ fontSize: 12.5 }}>{a.body}</div>
-                  </div>
-                ))}
-              </>
-            )
-          })()}
         </div>
       </div>
 
@@ -918,16 +837,14 @@ function TodayRow({ lead, userId, activities, onOpen, onOpenParent }: {
           <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
           <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
             {lead.form_received
-              ? <Tag tone="green">Jotform ✓</Tag>
-              : lead.form_sent_at
-                ? (
-                  <>
-                    <Tag tone="yellow">Jotform pending</Tag>
-                    <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
-                    <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
-                  </>
-                )
-                : null}
+              ? <Tag tone="green">form ✓</Tag>
+              : (
+                <>
+                  <Tag tone="grey">form pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got form</Quiet>
+                </>
+              )}
           </div>
         </div>
         {/* Step 1: arrived */}
@@ -1035,88 +952,19 @@ function TomorrowRow({ lead, userId, onOpen, onOpenParent }: {
         <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
         <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
           {lead.form_received
-            ? <Tag tone="green">Jotform ✓</Tag>
-            : lead.form_sent_at
-              ? (
-                <>
-                  <Tag tone="yellow">Jotform pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
-                </>
-              )
-              : null}
+            ? <Tag tone="green">form ✓</Tag>
+            : (
+              <>
+                <Tag tone="grey">form pending</Tag>
+                <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
+              </>
+            )}
         </div>
       </div>
       <div>
         {lead.confirmation_sent_at
           ? <Tag tone="green">confirmed ✓</Tag>
           : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
-      </div>
-    </div>
-  )
-}
-
-// ─── Booked row (non-today tabs) ─────────────────────────────────────────────
-function BookedRow({ lead, userId, onOpen, onOpenParent }: {
-  lead: Lead & { guardians: Guardian }
-  userId: string
-  onOpen: () => void
-  onOpenParent: () => void
-}) {
-  const [pending, startTransition] = useTransition()
-  const dateStr = lead.trial_at ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'
-  const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
-      <div>
-        <div style={{ fontWeight: 900, fontSize: 12 }}>{dateStr}</div>
-        <div style={{ fontWeight: 700, fontSize: 12, color: C.muted }}>{timeStr}</div>
-      </div>
-      <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
-        <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
-          {lead.form_received
-            ? <Tag tone="green">Jotform ✓</Tag>
-            : lead.form_sent_at
-              ? <Tag tone="yellow">Jotform pending</Tag>
-              : null}
-        </div>
-      </div>
-      <div>
-        {lead.confirmation_sent_at
-          ? <Tag tone="green">confirmed ✓</Tag>
-          : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
-      </div>
-    </div>
-  )
-}
-
-// ─── Upcoming actions row ─────────────────────────────────────────────────────
-function UpcomingRow({ lead, onOpen, onOpenParent }: {
-  lead: Lead & { guardians: Guardian }
-  onOpen: () => void
-  onOpenParent: () => void
-}) {
-  const dueDate = lead.next_action_at ? new Date(lead.next_action_at) : null
-  const dueDateStr = dueDate ? dueDate.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'
-  const isNextWeek = dueDate ? dueDate.getTime() - Date.now() > 6 * 86400000 : false
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
-      <div>
-        <div style={{ fontWeight: 900, fontSize: 12, color: isNextWeek ? C.muted : C.ink }}>{dueDateStr}</div>
-      </div>
-      <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
-        <div style={{ marginTop: 2 }}>
-          {lead.last_outcome
-            ? <Tag tone="grey">{lead.last_outcome}</Tag>
-            : <Tag tone="red" solid>not contacted</Tag>}
-        </div>
-      </div>
-      <div>
-        <Quiet onClick={onOpen}>View</Quiet>
       </div>
     </div>
   )
@@ -1171,6 +1019,87 @@ function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
   )
 }
 
+// ─── Booked row (future trials — not today) ───────────────────────────────────
+function BookedRow({ lead, userId, onOpen, onOpenParent }: {
+  lead: Lead & { guardians: Guardian }
+  userId: string
+  onOpen: () => void
+  onOpenParent: () => void
+}) {
+  const [pending, startTransition] = useTransition()
+  const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
+  const dateStr = lead.trial_at
+    ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '—'
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
+      <div>
+        <div style={{ fontWeight: 900, fontSize: 13 }}>{dateStr}</div>
+        <div style={{ fontWeight: 700, fontSize: 11.5, color: C.muted }}>{timeStr}</div>
+      </div>
+      <div>
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
+          {lead.form_received
+            ? <Tag tone="green">Jotform ✓</Tag>
+            : lead.form_sent_at
+              ? (
+                <>
+                  <Tag tone="yellow">Jotform pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
+                </>
+              )
+              : null}
+        </div>
+      </div>
+      <div>
+        {lead.confirmation_sent_at
+          ? <Tag tone="green">confirmed ✓</Tag>
+          : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Upcoming row (future new leads) ─────────────────────────────────────────
+function UpcomingRow({ lead, onOpen }: {
+  lead: Lead & { guardians: Guardian }
+  onOpen: () => void
+}) {
+  const age = ageFrom(lead.dob)
+  const guardian = lead.guardians
+  const dueStr = lead.next_action_at
+    ? new Date(lead.next_action_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '—'
+
+  return (
+    <div
+      onClick={onOpen}
+      style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '9px 12px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer' }}
+    >
+      <div>
+        <div style={{ fontWeight: 900, fontSize: 12.5, color: C.ink }}>{dueStr}</div>
+      </div>
+      <div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 800, fontSize: 13.5, color: C.ink }}>{lead.child_first} {lead.child_last}</span>
+          {age && <span style={{ color: C.muted, fontWeight: 700, fontSize: 11.5 }}>{age} yrs</span>}
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700, marginTop: 1 }}>
+          {(lead.relationship ?? '').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
+        </div>
+      </div>
+      <div>
+        {lead.last_outcome
+          ? <Tag tone="yellow">{lead.last_outcome}</Tag>
+          : <Tag tone="red">not contacted</Tag>}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main TodayClient component ───────────────────────────────────────────────
 interface TodayClientProps {
   appUser: AppUser
@@ -1218,8 +1147,8 @@ export default function TodayClient({
   const dow = new Date(todayStr + 'T12:00:00').getDay()
   const daysToSat = dow === 0 ? 6 : 6 - dow
   const endOfThisWeekStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat); return d.toISOString().slice(0, 10) })()
-  const nextWeekStartStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 2); return d.toISOString().slice(0, 10) })() // Mon
-  const nextWeekEndStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 7); return d.toISOString().slice(0, 10) })() // Sat
+  const nextWeekStartStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 2); return d.toISOString().slice(0, 10) })()
+  const nextWeekEndStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 7); return d.toISOString().slice(0, 10) })()
 
   const trialsByTab = {
     today: bookedLeads.filter(l => l.trial_at?.startsWith(todayStr)),
@@ -1230,7 +1159,7 @@ export default function TodayClient({
   }
 
   // All leads for family lookups
-  const allLeads = [...newLeads, ...upcomingNewLeads, ...bookedLeads, ...noShows, ...unverifiedSales]
+  const allLeads = [...newLeads, ...bookedLeads, ...noShows, ...unverifiedSales, ...upcomingNewLeads]
   // Deduplicate by id
   const allLeadsMap = new Map(allLeads.map(l => [l.id, l]))
   const allLeadsUniq = Array.from(allLeadsMap.values())
@@ -1318,11 +1247,11 @@ export default function TodayClient({
         ))}
       </Panel>
 
-      {/* ── Trials panel ── */}
+      {/* ── Trials panel (tabbed) ── */}
       <Panel
         head="Trials"
-        badge={todayTrials.length > 0 ? <Tag tone="green" solid>{todayTrials.length} today</Tag> : undefined}
-        sub={trialTab === 'today' ? <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>① arrived → ② 💰 sale or didn't enrol</span> : undefined}
+        badge={<Tag tone="green" solid>{todayTrials.length}</Tag>}
+        sub={<span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>① arrived → ② outcome: 💰 sale or didn't enrol</span>}
       >
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.lineSoft}`, background: '#FCFAF7' }}>
@@ -1351,24 +1280,38 @@ export default function TodayClient({
             {trialsByTab.today.length === 0 && noShows.length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
             )}
-            {trialsByTab.today.map(l => (
-              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities}
+            {trialsByTab.today
+              .slice()
+              .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
+              .map(l => (
+                <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities}
+                  onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+              ))}
+            {noShows.length > 0 && trialsByTab.today.length > 0 && (
+              <div style={{ borderTop: `1px solid ${C.line}`, margin: '4px 0 0' }} />
+            )}
+            {noShows.map(l => (
+              <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
                 onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
             ))}
-            {noShows.length > 0 && (
-              <>
-                <div style={{ padding: '6px 12px', background: '#FCFAF7', borderTop: `1px solid ${C.lineSoft}`, fontSize: 10.5, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — re-book</div>
-                {noShows.map(l => (
-                  <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
-                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-                ))}
-              </>
+          </>
+        )}
+
+        {/* Tomorrow tab */}
+        {trialTab === 'tomorrow' && (
+          <>
+            {trialsByTab.tomorrow.length === 0 && (
+              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials tomorrow.</div>
             )}
+            {trialsByTab.tomorrow.map(l => (
+              <TomorrowRow key={l.id} lead={l} userId={appUser.id}
+                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+            ))}
           </>
         )}
 
         {/* Other tabs: booked row with date/confirmation */}
-        {trialTab !== 'today' && (
+        {trialTab !== 'today' && trialTab !== 'tomorrow' && (
           <>
             {trialsByTab[trialTab].length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials in this period.</div>
@@ -1404,19 +1347,18 @@ export default function TodayClient({
       {/* ── Upcoming actions panel ── */}
       <Panel
         head="Upcoming actions — chase list"
-        sub={
-          <span style={{ fontSize: 12, fontWeight: 800, color: upcomingNewLeads.length ? C.yellow : C.muted }}>
-            {upcomingNewLeads.length ? `${upcomingNewLeads.length} scheduled` : 'none scheduled'}
-          </span>
-        }
+        sub={<span style={{ fontSize: 11.5, fontWeight: 800, color: C.muted }}>{upcomingNewLeads.length} scheduled</span>}
       >
-        {upcomingNewLeads.length === 0 && (
-          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions. Log a follow-up when calling to schedule reminders here.</div>
-        )}
-        {upcomingNewLeads.map(l => (
-          <UpcomingRow key={l.id} lead={l}
-            onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-        ))}
+        {upcomingNewLeads.length === 0
+          ? <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions scheduled.</div>
+          : upcomingNewLeads.map(l => (
+            <UpcomingRow
+              key={l.id}
+              lead={l}
+              onOpen={() => setOpenLeadId(l.id)}
+            />
+          ))
+        }
       </Panel>
 
       {/* ── Daily checklist ── */}
@@ -1462,7 +1404,6 @@ export default function TodayClient({
           onClose={() => setOpenLeadId(null)}
           userId={appUser.id}
           programmes={programmes}
-          activities={todayActivities}
           onOpenParent={() => {
             setOpenParentGuardianId(openLead.guardians.id)
             setOpenLeadId(null)
