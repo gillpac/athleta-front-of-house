@@ -491,7 +491,6 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
           <select value={progId} onChange={e => setProgId(e.target.value)} style={inp}>
             {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {age && <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: 'none' }}>Suggested from age {age}</span>}
         </label>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
           <Quiet onClick={onClose}>Cancel</Quiet>
@@ -602,18 +601,18 @@ function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
 }
 
 // ─── New lead row ─────────────────────────────────────────────────────────────
-function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
+function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   onOpen: () => void
   onOpenParent: () => void
   onBooked: () => void
+  programmes: Programme[]
 }) {
   const [callFor, setCallFor] = useState(false)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const mins = waitMins(lead.received_at)
-  const programmes: Programme[] = [] // will be injected from parent via context — kept simple here
 
   function handleCallOutcome(outcome: string, followUpAt?: string) {
     setCallFor(false)
@@ -659,6 +658,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
         <BookingModalWrapper
           lead={lead}
           userId={userId}
+          programmes={programmes}
           onClose={() => setBookingOpen(false)}
           onDone={() => { setBookingOpen(false); onBooked() }}
         />
@@ -1177,6 +1177,7 @@ export default function TodayClient({
             key={l.id}
             lead={l}
             userId={appUser.id}
+            programmes={programmes}
             onOpen={() => setOpenLeadId(l.id)}
             onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
             onBooked={() => {/* revalidation happens via server action */ }}

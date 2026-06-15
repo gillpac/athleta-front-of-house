@@ -352,7 +352,6 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
           <select value={progId} onChange={e => setProgId(e.target.value)} style={inp}>
             {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {age && <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: 'none' }}>Suggested from age {age}</span>}
         </label>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
           <Quiet onClick={onClose}>Cancel</Quiet>
