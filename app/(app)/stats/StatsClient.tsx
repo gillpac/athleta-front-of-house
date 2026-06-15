@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT } from '@/types'
-import { upsertTarget } from './actions'
+import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT, SiteSettings } from '@/types'
+import { upsertTarget, updateSiteMembers } from './actions'
 
 const C = {
   SAND: '#F6F3EE',
@@ -119,6 +119,96 @@ function TargetForm({ site, existing, userId }: TargetFormProps) {
   )
 }
 
+function MemberBaselineForm({ site, currentValue, userId }: { site: SiteT; currentValue: number; userId: string }) {
+  const [val, setVal] = useState(String(currentValue))
+  const [saved, setSaved] = useState(false)
+  const [pending, startTransition] = useTransition()
+
+  function save() {
+    startTransition(async () => {
+      await updateSiteMembers(site, parseInt(val) || 0, userId)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    })
+  }
+
+  return (
+    <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}`, padding: '14px 20px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <span style={{ fontWeight: 600, fontSize: 14, minWidth: 130 }}>{site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>
+      <div>
+        <div style={{ fontSize: 11, color: C.MUTED, marginBottom: 4 }}>CURRENT ACTIVE MEMBERS</div>
+        <input type="number" value={val} onChange={e => setVal(e.target.value)} min="0"
+          style={{ width: 90, padding: '7px 10px', border: `1px solid ${C.BORDER}`, fontSize: 16, fontWeight: 700, textAlign: 'center' }} />
+      </div>
+      <button onClick={save} disabled={pending}
+        style={{ padding: '9px 20px', background: saved ? C.GREEN : C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, alignSelf: 'flex-end', marginBottom: 1 }}>
+        {saved ? '✓ Saved' : pending ? 'Saving…' : 'Save'}
+      </button>
+    </div>
+  )
+}
+
+function DebitScheduleTable({ siteSettings, netGrowthPerDay, netGoalPerMonth, todayStr }: {
+  siteSettings: SiteSettings[]
+  netGrowthPerDay: number
+  netGoalPerMonth: number
+  todayStr: string
+}) {
+  const baseMembers = siteSettings.reduce((sum, s) => sum + s.current_members, 0)
+
+  if (baseMembers === 0) {
+    return (
+      <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}`, padding: 24, textAlign: 'center', color: C.MUTED, fontSize: 13 }}>
+        Set the current active member count above to generate projections.
+      </div>
+    )
+  }
+
+  // Next Monday from today
+  const today = new Date(todayStr + 'T12:00:00')
+  const dayOfWeek = today.getDay()
+  const daysToNextMon = dayOfWeek === 1 ? 0 : dayOfWeek === 0 ? 1 : 8 - dayOfWeek
+  const firstDate = new Date(today)
+  firstDate.setDate(today.getDate() + daysToNextMon)
+
+  const netGoalPerDay = netGoalPerMonth / 30
+
+  const rows: { date: string; runRate: number; targetTrajectory: number }[] = []
+  for (let i = 0; i < 26; i++) {
+    const d = new Date(firstDate)
+    d.setDate(firstDate.getDate() + i * 14)
+    const daysAhead = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    rows.push({
+      date: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`,
+      runRate: Math.round(baseMembers + netGrowthPerDay * daysAhead),
+      targetTrajectory: Math.round(baseMembers + netGoalPerDay * daysAhead),
+    })
+  }
+
+  return (
+    <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}`, overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: C.SAND }}>
+            <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', color: C.MUTED, letterSpacing: '0.07em' }}>Debit date</th>
+            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', color: C.MUTED, letterSpacing: '0.07em' }}>Run-rate projection</th>
+            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', color: C.MUTED, letterSpacing: '0.07em' }}>Target trajectory</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.date} style={{ background: i % 2 === 0 ? C.WHITE : C.SAND }}>
+              <td style={{ padding: '9px 14px', fontWeight: 600 }}>{r.date}</td>
+              <td style={{ padding: '9px 14px', textAlign: 'right', fontWeight: 700, color: C.INK }}>{r.runRate.toLocaleString()}</td>
+              <td style={{ padding: '9px 14px', textAlign: 'right', fontWeight: 700, color: r.runRate >= r.targetTrajectory ? C.GREEN : C.RED }}>{r.targetTrajectory.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 interface Props {
   user: AppUser
   leads: Lead[]
@@ -129,12 +219,14 @@ interface Props {
   blockoutDays: BlockoutDay[]
   monthStart: string
   todayStr: string
+  siteSettings: SiteSettings[]
 }
 
-export default function StatsClient({ user, leads, cancellations, targets, sourceLeads, staff, blockoutDays, monthStart, todayStr }: Props) {
+export default function StatsClient({ user, leads, cancellations, targets, sourceLeads, staff, blockoutDays, monthStart, todayStr, siteSettings }: Props) {
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const isManagement = user.role === 'management'
-  const [tab, setTab] = useState<'overview' | 'sources' | 'targets'>('overview')
+  const siteFilter = isAdmin ? null : user.site
+  const [tab, setTab] = useState<'overview' | 'sources' | 'targets' | 'debit'>('overview')
 
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
 
@@ -190,14 +282,14 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
     <div style={{ maxWidth: 800 }}>
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.BORDER}`, marginBottom: 24 }}>
-        {(['overview', 'sources', ...(isAdmin ? ['targets'] : [])] as string[]).map(t => (
+        {(['overview', 'sources', ...(isAdmin ? ['targets', 'debit'] : [])] as string[]).map(t => (
           <button key={t} onClick={() => setTab(t as typeof tab)}
             style={{
               padding: '10px 18px', fontSize: 13, fontWeight: tab === t ? 700 : 500, cursor: 'pointer',
               background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? C.ORANGE : 'transparent'}`,
               color: tab === t ? C.ORANGE : C.INK, marginBottom: -1, textTransform: 'capitalize',
             }}>
-            {t === 'targets' ? 'Set targets' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'targets' ? 'Set targets' : t === 'debit' ? 'Debit schedule' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -307,6 +399,36 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
                 userId={user.id}
               />
             ))}
+          </Section>
+        </>
+      )}
+
+      {tab === 'debit' && isAdmin && (
+        <>
+          <Section title="Member baseline">
+            <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 12 }}>
+              Enter the current active member count per site to anchor the projections below.
+            </p>
+            {(['coolaroo', 'altona_north'] as SiteT[]).filter(s => !siteFilter || siteFilter === s).map(site => (
+              <MemberBaselineForm
+                key={site}
+                site={site}
+                currentValue={siteSettings.find(s => s.site === site)?.current_members ?? 0}
+                userId={user.id}
+              />
+            ))}
+          </Section>
+
+          <Section title="Fortnightly debit schedule — next 12 months">
+            <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 12 }}>
+              Run-rate uses this month's verified net growth pace. Target trajectory uses the monthly net growth goal.
+            </p>
+            <DebitScheduleTable
+              siteSettings={siteSettings.filter(s => !siteFilter || siteFilter === s.site)}
+              netGrowthPerDay={opDays.elapsed > 0 ? netGrowth / opDays.elapsed : 0}
+              netGoalPerMonth={netGoal}
+              todayStr={todayStr}
+            />
           </Section>
         </>
       )}

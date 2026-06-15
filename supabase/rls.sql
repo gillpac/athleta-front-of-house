@@ -258,3 +258,11 @@ create policy "audit_log_read" on audit_log
 -- No INSERT/UPDATE policies for authenticated users — all writes are
 -- done via the admin client (service role) in lib/audit.ts, which
 -- bypasses RLS. This prevents any client-side tampering.
+
+alter table site_settings enable row level security;
+-- All authenticated users can read
+create policy "read site_settings" on site_settings for select to authenticated using (true);
+-- Only admin/management can write
+create policy "write site_settings" on site_settings for all to authenticated
+  using (auth_role() in ('admin','management'))
+  with check (auth_role() in ('admin','management'));

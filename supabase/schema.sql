@@ -153,3 +153,11 @@ create index on audit_log (entity, entity_id);
 insert into programmes (name, sort) values
  ('Kinder Gym', 1), ('Beginners Principles', 2), ('Level 1', 3), ('Level 2', 4),
  ('Level 3', 5), ('Level 4+', 6), ('Boys', 7);
+
+create table site_settings (
+  site site_t primary key,
+  current_members int not null default 0,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references app_users(id)
+);
+insert into site_settings (site, current_members) values ('coolaroo', 0), ('altona_north', 0);

@@ -142,6 +142,13 @@ export interface ChecklistCompletion {
   completed_at: string
 }
 
+export interface SiteSettings {
+  site: SiteT
+  current_members: number
+  updated_at: string | null
+  updated_by: string | null
+}
+
 export interface AuditLog {
   id: number
   entity: string
