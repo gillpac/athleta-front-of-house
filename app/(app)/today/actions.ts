@@ -155,7 +155,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
     await postToZapier({
       to: guardian?.email ?? null,
-      subject: `Your trial booking — ${lead.child_first} at Athleta Gymnastics`,
+      subject: `Your trial booking for ${lead.child_first}`,
       html_body: htmlBody,
       site: lead.site,
       kind: 'confirmation',
@@ -235,7 +235,7 @@ export async function sendJotform(leadId: string, userId: string) {
       const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0;font-size:14px;">Hi ${guardianFirstName},<br><br>Please complete the enrolment form for <strong>${lead.child_first}</strong> before your trial. It covers medical and emergency details and must be completed prior to attending.<br><br>👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
       await postToZapier({
         to: guardian?.email ?? null,
-        subject: `Enrolment form — ${lead.child_first} at Athleta Gymnastics`,
+        subject: `Enrolment form for ${lead.child_first}`,
         html_body: htmlBody,
         site: lead.site,
         kind: 'jotform',
@@ -266,7 +266,7 @@ export async function resendForm(leadId: string, userId: string) {
       const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0;font-size:14px;">Hi ${guardianFirstName},<br><br>Just a reminder to complete the enrolment form for <strong>${lead.child_first}</strong> before the trial. It covers medical and emergency details and must be completed prior to attending.<br><br>👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
       await postToZapier({
         to: guardian?.email ?? null,
-        subject: `Reminder: Enrolment form — ${lead.child_first} at Athleta Gymnastics`,
+        subject: `Reminder: Enrolment form for ${lead.child_first}`,
         html_body: htmlBody,
         site: lead.site,
         kind: 'jotform',

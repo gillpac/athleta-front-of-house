@@ -120,7 +120,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
     await postToZapier({
       to: guardian?.email ?? null,
-      subject: `Your trial booking — ${lead.child_first} at Athleta Gymnastics`,
+      subject: `Your trial booking for ${lead.child_first}`,
       html_body: htmlBody,
       site: lead.site,
       kind: 'confirmation',
