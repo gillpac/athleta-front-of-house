@@ -699,6 +699,7 @@ export function ProfilePanel({
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px', fontFamily: FONT }}>
             <ProfileSection title="Child">
+              <InfoRow label="Site" value={lead.site === 'altona_north' ? 'Altona North' : 'Coolaroo'} />
               <InfoRow label="Date of birth" value={lead.dob ? `${formatDate(lead.dob)} (${age} yrs)` : '—'} />
               {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
               <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : lead.form_sent_at ? '⧗ Sent — awaiting return' : '— not yet sent'} color={lead.form_received ? C.green : lead.form_sent_at ? C.yellow : C.muted} />
