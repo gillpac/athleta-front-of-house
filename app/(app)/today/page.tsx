@@ -137,14 +137,19 @@ export default async function TodayPage() {
     .eq('user_id', appUser.id)
     .eq('day', todayStr)
 
-  // Activities for booked leads (to determine arrived state)
-  const trialLeadIds = bookedLeads.map(l => l.id)
+  // Activities for all visible leads (arrived state + profile timeline)
+  const allVisibleIds = Array.from(new Set([
+    ...newLeads.map(l => l.id),
+    ...upcomingNewLeads.map(l => l.id),
+    ...bookedLeads.map(l => l.id),
+    ...noShows.map(l => l.id),
+  ]))
   let activitiesData: Array<{ lead_id: string; kind: string; body: string; created_at: string }> = []
-  if (trialLeadIds.length > 0) {
+  if (allVisibleIds.length > 0) {
     const { data: acts } = await supabase
       .from('activities')
       .select('lead_id, kind, body, created_at')
-      .in('lead_id', trialLeadIds)
+      .in('lead_id', allVisibleIds)
       .order('created_at', { ascending: false })
     activitiesData = acts ?? []
   }

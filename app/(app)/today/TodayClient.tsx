@@ -19,6 +19,7 @@ import {
   logEmail,
   resendForm,
   markFormReceived,
+  sendJotform,
 } from './actions'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -53,7 +54,21 @@ function formatTime(isoStr: string): string {
 }
 
 function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function fmtDateTime(isoStr: string | null): string {
+  if (!isoStr) return '—'
+  return new Date(isoStr).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+}
+
+const FIELD_LABEL_OVERRIDES: Record<string, string> = {
+  prefDays: 'Preferred days', preferred_day: 'Preferred day', prior: 'Prior experience',
+  notes: 'Notes', childName: 'Child name', guardian: 'Guardian', mobile: 'Mobile', interest: 'Interest',
+}
+function fmtFieldLabel(key: string): string {
+  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
+  return key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function waitMins(receivedAt: string): number {
@@ -249,6 +264,17 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
         borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 260, padding: 12,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+          {([['1 hour', 'h1'], ['2 hours', 'h2']] as [string, string][]).map(([label, key]) => (
+            <button key={key} onClick={() => {
+              const d = new Date()
+              d.setHours(d.getHours() + (key === 'h1' ? 1 : 2), 0, 0, 0)
+              onPick(step, d.toISOString())
+            }} style={{ fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer', padding: '8px 6px', background: C.orange, color: '#fff', border: `1px solid ${C.orangeDark}` }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
           {([
             ['Tomorrow', 1],
@@ -261,7 +287,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
               onClick={() => onPick(step, followUpDate(days))}
               style={{
                 fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer',
-                padding: '8px 6px', borderRadius: 4,
+                padding: '8px 6px',
                 background: C.ink, color: '#fff',
                 border: `1px solid ${C.ink}`,
               }}
@@ -510,7 +536,40 @@ function EnrolModal({ lead, onClose, onConfirm }: {
 }
 
 // ─── Profile slide-in ─────────────────────────────────────────────────────────
-function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead }: {
+const PROFILE_KNOWN_FIELDS = new Set([
+  'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
+  'source', 'referrer_name', 'utm_source', 'utm_medium', 'utm_campaign',
+  'child_first_1', 'child_last_1', 'dob_1', 'gender_1', 'programme_name_1', 'interest_1',
+  'child_first_2', 'child_last_2', 'dob_2', 'gender_2', 'programme_name_2', 'interest_2',
+  'child_first_3', 'child_last_3', 'dob_3', 'gender_3', 'programme_name_3', 'interest_3',
+  'child_first_4', 'child_last_4', 'dob_4', 'gender_4', 'programme_name_4', 'interest_4',
+])
+
+function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function InfoRow({ label, value, color, longText }: { label: string; value: string; color?: string; longText?: boolean }) {
+  if (longText) return (
+    <div style={{ fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+      <div style={{ color: C.muted }}>{label}</div>
+      <div style={{ color: color ?? C.ink, fontWeight: 500, marginTop: 2 }}>{value}</div>
+    </div>
+  )
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+      <span style={{ color: C.muted }}>{label}</span>
+      <span style={{ color: color ?? C.ink, fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
+    </div>
+  )
+}
+
+function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead, activities }: {
   lead: Lead & { guardians: Guardian }
   allLeads: (Lead & { guardians: Guardian })[]
   onClose: () => void
@@ -518,6 +577,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   programmes: Programme[]
   onOpenParent: () => void
   onSwitchLead: (id: string) => void
+  activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
 }) {
   const [note, setNote] = useState('')
   const [callOpen, setCallOpen] = useState(false)
@@ -529,7 +589,12 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   const bookable = lead.status === 'new' || lead.status === 'noshow' || lead.status === 'nurture'
   const age = ageFrom(lead.dob)
   const guardian = lead.guardians
-  const h4s: React.CSSProperties = { margin: '18px 0 8px', fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.2, color: C.muted }
+  const prog = programmes.find(p => p.id === lead.programme_id)
+  const leadActivities = activities.filter(a => a.lead_id === lead.id)
+  const extraFields = lead.enquiry_raw
+    ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !PROFILE_KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
+    : []
+  const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
 
   function handleCall(outcome: string, followUpAt?: string) {
     setCallOpen(false)
@@ -542,98 +607,140 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 40 }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(23,19,14,.4)' }} onClick={onClose} />
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 430, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>
-                {lead.child_first} {lead.child_last}{' '}
-                <span style={{ color: C.muted, fontWeight: 700, fontSize: 13 }}>
-                  {age ? `${age} yrs` : ''}{lead.dob ? ` · DOB ${lead.dob}` : ''}
-                </span>
-              </h3>
-              <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 700, marginTop: 2 }}>
-                {(lead.relationship ?? '').toLowerCase()} ·{' '}
-                <button onClick={onOpenParent} style={{ fontFamily: FONT, fontWeight: 700, fontSize: 12.5, color: C.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', borderBottom: `1px dotted ${C.line}` }}>
-                  {guardian.first_name} {guardian.last_name}
-                </button>
-                {' '}· {guardian.phone}
-              </div>
-              {siblings.length > 0 && (
-                <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>FAMILY:</span>
-                  {siblings.map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => onSwitchLead(s.id)}
-                      style={{ fontFamily: FONT, display: 'inline-flex', gap: 6, alignItems: 'center', background: C.sand, border: `1px solid ${C.line}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontSize: 11.5, fontWeight: 800, color: C.ink }}
-                    >
-                      {s.child_first} {s.child_last}
-                      <Tag tone={s.status === 'won' ? 'green' : s.status === 'new' ? 'red' : s.status === 'booked' ? 'green' : s.status === 'noshow' ? 'red' : 'yellow'}>
-                        {s.status}
-                      </Tag>
-                    </button>
-                  ))}
+        <div style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '94vw',
+          background: '#fff', borderLeft: `3px solid ${C.orange}`, display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Header */}
+          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.line}`, background: '#FCFAF7', flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 900, fontSize: 18 }}>{lead.child_first} {lead.child_last}</div>
+                <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Tag tone={lead.status === 'won' ? 'green' : lead.status === 'new' ? 'red' : lead.status === 'booked' ? 'green' : lead.status === 'noshow' ? 'red' : 'yellow'} solid>
+                    {lead.status === 'won' ? 'enrolled' : lead.status}
+                  </Tag>
+                  {prog && <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{prog.name}</span>}
                 </div>
-              )}
-            </div>
-            <Quiet onClick={onClose}>Close ✕</Quiet>
-          </div>
-
-          {/* action bar */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
-            <Next onClick={() => setCallOpen(!callOpen)}>📞 Call</Next>
-            <Quiet onClick={() => startTransition(() => logText(lead.id, userId))}>💬 Log text</Quiet>
-            <Quiet onClick={() => startTransition(() => logEmail(lead.id, userId))}>✉ Log email</Quiet>
-            {bookable && (
-              <Next onClick={() => setBookingOpen(true)}>
-                {lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}
-              </Next>
-            )}
-            {(lead.status === 'booked' || lead.status === 'nurture') && (
-              <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>
-            )}
-            {callOpen && <CallMenu onPick={handleCall} onClose={() => setCallOpen(false)} />}
-          </div>
-
-          {/* form + programme */}
-          <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            {lead.form_received
-              ? <Tag tone="green">form ✓</Tag>
-              : (
-                <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
-                  <Tag tone="yellow">form pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend form</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got form ✓</Quiet>
-                </span>
-              )}
-            {lead.status === 'won' && (
-              lead.verified_at ? <Tag tone="green" solid>sale ✓</Tag> : <Tag tone="yellow">sale — pending admin</Tag>
-            )}
-          </div>
-
-          {/* enquiry details */}
-          <h4 style={h4s}>Original enquiry — received {formatDate(lead.received_at)}</h4>
-          <div style={{ background: C.bg, border: `1px solid ${C.lineSoft}`, borderRadius: 4, padding: '10px 12px' }}>
-            {(lead.enquiry_raw ? Object.entries(lead.enquiry_raw) : []).map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', fontSize: 12.5, fontWeight: 700, padding: '3px 0', borderBottom: `1px dashed ${C.lineSoft}` }}>
-                <span style={{ width: 150, color: C.muted }}>{k}</span>
-                <span style={{ color: '#2B2521' }}>{String(v)}</span>
+                <div style={{ marginTop: 5, fontSize: 12, color: C.muted }}>
+                  Enquired {formatDate(lead.received_at)}{lead.source ? ` · ${lead.source}` : ''}{lead.trial_at ? ` · Trial ${fmtDateTime(lead.trial_at)}` : ''}
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginTop: 2 }}>
+                  {(lead.relationship ?? '').toLowerCase()} ·{' '}
+                  <button onClick={onOpenParent} style={{ fontFamily: FONT, fontWeight: 700, fontSize: 12.5, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer', borderBottom: `1px dotted ${C.line}` }}>
+                    {guardian.first_name} {guardian.last_name}
+                  </button>
+                  {' '}· {guardian.phone}
+                </div>
+                {siblings.length > 0 && (
+                  <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 900, color: C.muted, letterSpacing: '.4px' }}>FAMILY:</span>
+                    {siblings.map(s => (
+                      <button key={s.id} onClick={() => onSwitchLead(s.id)}
+                        style={{ fontFamily: FONT, display: 'inline-flex', gap: 5, alignItems: 'center', background: C.sand, border: `1px solid ${C.line}`, padding: '2px 7px', cursor: 'pointer', fontSize: 11.5, fontWeight: 800, color: C.ink }}>
+                        {s.child_first} {s.child_last}
+                        <Tag tone={s.status === 'won' ? 'green' : s.status === 'new' ? 'red' : s.status === 'booked' ? 'green' : s.status === 'noshow' ? 'red' : 'yellow'}>{s.status}</Tag>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
+              <Quiet onClick={onClose}>✕</Quiet>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
+              <Next onClick={() => setCallOpen(!callOpen)}>📞 Call</Next>
+              <Quiet onClick={() => startTransition(() => logText(lead.id, userId))}>💬 Log text</Quiet>
+              <Quiet onClick={() => startTransition(() => logEmail(lead.id, userId))}>✉ Log email</Quiet>
+              {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
+              {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}
+              {callOpen && <CallMenu onPick={handleCall} onClose={() => setCallOpen(false)} />}
+            </div>
+
+            {/* Jotform status */}
+            <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {lead.form_received
+                ? <Tag tone="green">Jotform ✓</Tag>
+                : lead.form_sent_at
+                  ? (<><Tag tone="yellow">Jotform pending</Tag><Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet><Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet></>)
+                  : <Quiet onClick={() => startTransition(() => sendJotform(lead.id, userId))}>Send Jotform</Quiet>
+              }
+              {lead.status === 'won' && (lead.verified_at ? <Tag tone="green" solid>sale ✓</Tag> : <Tag tone="yellow">sale — pending admin</Tag>)}
+            </div>
           </div>
 
-          {/* note input */}
-          <h4 style={h4s}>Add a note</h4>
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note…" style={{ ...inp, flex: 1 }} />
-            <Next onClick={() => {
-              if (note.trim()) {
-                startTransition(() => logNote(lead.id, note.trim(), userId))
-                setNote('')
+          {/* Scrollable body */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
+            <ProfileSection title="Child">
+              <InfoRow label="Date of birth" value={lead.dob ? `${formatDate(lead.dob)} (${age} yrs)` : '—'} />
+              {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
+              <InfoRow label="Source" value={lead.source ?? '—'} />
+              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
+              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
+              <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : '✗ Pending'} color={lead.form_received ? C.green : C.red} />
+            </ProfileSection>
+
+            <ProfileSection title="Guardian">
+              <InfoRow label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
+              <InfoRow label="Phone" value={guardian.phone} />
+              {guardian.email && <InfoRow label="Email" value={guardian.email} />}
+              {guardian.preferred_contact && <InfoRow label="Preferred contact" value={guardian.preferred_contact} />}
+            </ProfileSection>
+
+            {lead.trial_at && (
+              <ProfileSection title="Trial">
+                <InfoRow label="Booked for" value={fmtDateTime(lead.trial_at)} />
+                {lead.confirmation_sent_at && <InfoRow label="Confirmation sent" value={fmtDateTime(lead.confirmation_sent_at)} color={C.green} />}
+              </ProfileSection>
+            )}
+
+            {lead.status === 'won' && (
+              <ProfileSection title="Enrolment">
+                {lead.sold_at && <InfoRow label="Enrolled" value={fmtDateTime(lead.sold_at)} />}
+                {lead.first_class && <InfoRow label="First class" value={`${lead.first_class_date ? formatDate(lead.first_class_date) : ''} ${lead.first_class}`} />}
+                <InfoRow label="Payment taken" value={lead.payment_taken ? '✓ Yes' : '✗ No'} color={lead.payment_taken ? C.green : C.red} />
+                {lead.verified_at && <InfoRow label="Admin verified" value={fmtDateTime(lead.verified_at)} color={C.green} />}
+              </ProfileSection>
+            )}
+
+            {lead.status === 'nurture' && lead.nurture_followup_at && (
+              <ProfileSection title="Nurture">
+                <InfoRow label="Follow-up date" value={formatDate(lead.nurture_followup_at)} />
+                {lead.lost_reason && <InfoRow label="Reason" value={lead.lost_reason} />}
+              </ProfileSection>
+            )}
+
+            {extraFields.length > 0 && (
+              <ProfileSection title="Additional info">
+                {extraFields.map(([k, v]) => (
+                  <InfoRow key={k} label={fmtFieldLabel(k)} value={String(v)} longText={String(v).length > 60} />
+                ))}
+              </ProfileSection>
+            )}
+
+            <ProfileSection title="Add note">
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note…" style={{ ...inp, flex: 1 }} />
+                <Next onClick={() => { if (note.trim()) { startTransition(() => logNote(lead.id, note.trim(), userId)); setNote('') } }}>Save</Next>
+              </div>
+              {pending && <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginTop: 4 }}>Saving…</div>}
+            </ProfileSection>
+
+            <ProfileSection title="Timeline">
+              {leadActivities.length === 0
+                ? <div style={{ fontSize: 13, color: C.muted }}>No activity yet.</div>
+                : leadActivities.map((a, i) => (
+                  <div key={i} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>
+                      {new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                    <div style={{ fontSize: 12.5 }}>{a.body}</div>
+                  </div>
+                ))
               }
-            }}>Save</Next>
+            </ProfileSection>
           </div>
-          {pending && <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginTop: 4 }}>Saving…</div>}
         </div>
       </div>
 
@@ -1054,10 +1161,21 @@ function BookedRow({ lead, userId, onOpen, onOpenParent }: {
               : null}
         </div>
       </div>
-      <div>
-        {lead.confirmation_sent_at
-          ? <Tag tone="green">confirmed ✓</Tag>
-          : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+        {lead.status === 'booked'
+          ? lead.confirmation_sent_at
+            ? <Tag tone="green">confirmed ✓</Tag>
+            : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>
+          : lead.status === 'won'
+            ? <Tag tone="green" solid>enrolled</Tag>
+            : lead.status === 'noshow'
+              ? <Tag tone="red" solid>no-show</Tag>
+              : lead.status === 'nurture'
+                ? <Tag tone="yellow">nurture</Tag>
+                : lead.status === 'lost'
+                  ? <Tag tone="grey">lost</Tag>
+                  : null
+        }
       </div>
     </div>
   )
@@ -1138,7 +1256,9 @@ export default function TodayClient({
 }: TodayClientProps) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [openParentGuardianId, setOpenParentGuardianId] = useState<string | null>(null)
-  const [trialTab, setTrialTab] = useState<'today' | 'tomorrow' | 'this_week' | 'next_week' | 'all'>('today')
+  const [trialTab, setTrialTab] = useState<'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month' | 'custom'>('today')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [pending, startTransition] = useTransition()
 
   // Compute tab date boundaries from todayStr
@@ -1149,13 +1269,22 @@ export default function TodayClient({
   const endOfThisWeekStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat); return d.toISOString().slice(0, 10) })()
   const nextWeekStartStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 2); return d.toISOString().slice(0, 10) })()
   const nextWeekEndStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 7); return d.toISOString().slice(0, 10) })()
+  const firstOfMonthStr = todayStr.slice(0, 8) + '01'
+  const endOfMonthStr = (() => { const d = new Date(todayStr.slice(0, 7) + '-01T12:00:00'); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10) })()
 
   const trialsByTab = {
     today: bookedLeads.filter(l => l.trial_at?.startsWith(todayStr)),
     tomorrow: bookedLeads.filter(l => l.trial_at?.startsWith(tomorrowStr)),
     this_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= dayAfterTomStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
     next_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
-    all: bookedLeads,
+    this_month: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= firstOfMonthStr && l.trial_at.slice(0, 10) <= endOfMonthStr),
+    custom: bookedLeads.filter(l => {
+      if (!l.trial_at) return false
+      const d = l.trial_at.slice(0, 10)
+      if (customFrom && d < customFrom) return false
+      if (customTo && d > customTo) return false
+      return true
+    }),
   }
 
   // All leads for family lookups
@@ -1232,6 +1361,13 @@ export default function TodayClient({
           </span>
         }
       >
+        {newLeads.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Received</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
+          </div>
+        )}
         {newLeads.length === 0 && (
           <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No new leads — great work!</div>
         )}
@@ -1250,17 +1386,17 @@ export default function TodayClient({
       {/* ── Trials panel (tabbed) ── */}
       <Panel
         head="Trials"
-        badge={<Tag tone="green" solid>{todayTrials.length}</Tag>}
-        sub={<span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>① arrived → ② outcome: 💰 sale or didn't enrol</span>}
+        badge={todayTrials.length > 0 ? <Tag tone="green" solid>{todayTrials.length} today</Tag> : undefined}
       >
         {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.lineSoft}`, background: '#FCFAF7' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0, borderBottom: `1px solid ${C.lineSoft}`, background: '#FCFAF7' }}>
           {([
             ['today', 'Today', trialsByTab.today.length],
             ['tomorrow', 'Tomorrow', trialsByTab.tomorrow.length],
             ['this_week', 'This week', trialsByTab.this_week.length],
             ['next_week', 'Next week', trialsByTab.next_week.length],
-            ['all', 'All booked', trialsByTab.all.length],
+            ['this_month', 'This month', trialsByTab.this_month.length],
+            ['custom', 'Custom…', trialsByTab.custom.length],
           ] as [string, string, number][]).map(([key, label, count]) => (
             <button key={key} onClick={() => setTrialTab(key as typeof trialTab)}
               style={{
@@ -1274,32 +1410,58 @@ export default function TodayClient({
           ))}
         </div>
 
+        {/* Custom date pickers */}
+        {trialTab === 'custom' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>From</span>
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line}`, fontSize: 12 }} />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ padding: '4px 8px', border: `1px solid ${C.line}`, fontSize: 12 }} />
+          </div>
+        )}
+
         {/* Today tab: arrived/outcome flow */}
         {trialTab === 'today' && (
           <>
+            {trialsByTab.today.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>① Arrived?</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>② Outcome</span>
+              </div>
+            )}
             {trialsByTab.today.length === 0 && noShows.length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
             )}
-            {trialsByTab.today
-              .slice()
-              .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
-              .map(l => (
-                <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities}
-                  onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-              ))}
-            {noShows.length > 0 && trialsByTab.today.length > 0 && (
-              <div style={{ borderTop: `1px solid ${C.line}`, margin: '4px 0 0' }} />
-            )}
-            {noShows.map(l => (
-              <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+            {trialsByTab.today.map(l => (
+              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities}
                 onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
             ))}
+            {noShows.length > 0 && (
+              <>
+                <div style={{ padding: '5px 12px', background: '#FCFAF7', borderTop: `1px solid ${C.lineSoft}` }}>
+                  <span style={{ fontSize: 10, fontWeight: 900, color: C.red, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — contact &amp; re-book</span>
+                </div>
+                {noShows.map(l => (
+                  <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))}
+              </>
+            )}
           </>
         )}
 
         {/* Tomorrow tab */}
         {trialTab === 'tomorrow' && (
           <>
+            {trialsByTab.tomorrow.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Time</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
+              </div>
+            )}
             {trialsByTab.tomorrow.length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials tomorrow.</div>
             )}
@@ -1310,9 +1472,16 @@ export default function TodayClient({
           </>
         )}
 
-        {/* Other tabs: booked row with date/confirmation */}
+        {/* Other tabs: booked row with date + status */}
         {trialTab !== 'today' && trialTab !== 'tomorrow' && (
           <>
+            {trialsByTab[trialTab].length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Date / time</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Status / action</span>
+              </div>
+            )}
             {trialsByTab[trialTab].length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials in this period.</div>
             )}
@@ -1349,8 +1518,15 @@ export default function TodayClient({
         head="Upcoming actions — chase list"
         sub={<span style={{ fontSize: 11.5, fontWeight: 800, color: C.muted }}>{upcomingNewLeads.length} scheduled</span>}
       >
+        {upcomingNewLeads.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Follow-up due</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last outcome</span>
+          </div>
+        )}
         {upcomingNewLeads.length === 0
-          ? <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions scheduled.</div>
+          ? <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions. Log a follow-up after calling to schedule reminders here.</div>
           : upcomingNewLeads.map(l => (
             <UpcomingRow
               key={l.id}
@@ -1409,6 +1585,7 @@ export default function TodayClient({
             setOpenLeadId(null)
           }}
           onSwitchLead={(id) => setOpenLeadId(id)}
+          activities={todayActivities}
         />
       )}
 
