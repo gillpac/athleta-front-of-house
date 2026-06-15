@@ -6,7 +6,7 @@ import {
   logCallOutcome, bookTrial, markNoShow, makeSale,
   markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead, createLead,
 } from './actions'
-import { logText, logEmail } from '../today/actions'
+import { logText, logEmail, updateLeadProfile, archiveLeadWithReason } from '../today/actions'
 
 const C = {
   SAND: '#F6F3EE',
@@ -198,6 +198,129 @@ function EnrolModal({ leadId, userId, formReceived, onClose }: EnrolModalProps) 
   )
 }
 
+const LPROFILE_FONT = "'Nunito', system-ui, sans-serif"
+const LC = {
+  ink: '#17130E', orange: '#E26839', orangeDark: '#B94E22',
+  bg: '#F6F3EE', card: '#FFFFFF', sand: '#EFE8DE',
+  line: '#D9CFC2', lineSoft: '#E8E1D6', muted: '#84776A',
+  green: '#27865C', greenDark: '#1E6B49', greenBg: '#DFF0E6',
+  yellow: '#9A7409', yellowBg: '#FBF1CF',
+  red: '#B23A24', redBg: '#F6DCD4', grey: '#6E655B', greyBg: '#ECE7DF',
+}
+const LINP: React.CSSProperties = { fontFamily: LPROFILE_FONT, fontSize: 13, fontWeight: 600, padding: '7px 9px', borderRadius: 4, border: `1px solid ${LC.line}`, background: '#fff' }
+const LLBL: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, color: LC.muted, marginBottom: 10, textTransform: 'uppercase' as const, letterSpacing: 0.5 }
+
+function LBtn({ children, onClick, color = LC.orange, disabled }: { children: React.ReactNode; onClick?: () => void; color?: string; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ fontFamily: LPROFILE_FONT, fontWeight: 700, fontSize: 12, cursor: disabled ? 'default' : 'pointer', borderRadius: 4, padding: '6px 12px', background: disabled ? LC.greyBg : color, color: '#fff', border: 'none', opacity: disabled ? 0.6 : 1 }}>
+      {children}
+    </button>
+  )
+}
+function LQuiet({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} style={{ fontFamily: LPROFILE_FONT, fontWeight: 600, fontSize: 11.5, cursor: 'pointer', borderRadius: 4, padding: '6px 10px', background: 'transparent', color: LC.muted, border: `1px solid ${LC.lineSoft}` }}>
+      {children}
+    </button>
+  )
+}
+
+const ARCHIVE_REASONS_L = ['Spam / test enquiry', 'Duplicate record', 'Entered in error', 'Parent requested removal', 'Other']
+
+function LeadsArchiveModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: (r: string) => void }) {
+  const [reason, setReason] = useState(ARCHIVE_REASONS_L[0])
+  const [other, setOther] = useState('')
+  const final = reason === 'Other' ? (other.trim() ? `Other — ${other.trim()}` : '') : reason
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 320 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 6, padding: '20px 22px', width: 360, maxWidth: '90vw', borderTop: `3px solid ${LC.red}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 900, color: LC.red }}>Archive this lead?</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: LC.muted }}>Select a reason — used for reporting.</p>
+        <label style={LLBL}>Reason
+          <select value={reason} onChange={e => setReason(e.target.value)} style={LINP}>
+            {ARCHIVE_REASONS_L.map(r => <option key={r}>{r}</option>)}
+          </select>
+        </label>
+        {reason === 'Other' && (
+          <label style={{ ...LLBL, marginTop: 8 }}>Details
+            <input value={other} onChange={e => setOther(e.target.value)} placeholder="Brief reason…" style={LINP} />
+          </label>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <LQuiet onClick={onClose}>Cancel</LQuiet>
+          <button onClick={() => final && onConfirm(final)} disabled={!final}
+            style={{ fontFamily: LPROFILE_FONT, fontWeight: 700, fontSize: 12, cursor: final ? 'pointer' : 'default', padding: '7px 14px', background: final ? LC.red : LC.greyBg, color: final ? '#fff' : LC.muted, border: 'none', borderRadius: 4 }}>
+            Archive lead
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeadsEditModal({ lead, guardian, programmes, onClose, onArchive, onSave }: {
+  lead: Lead; guardian: Guardian | undefined; programmes: Programme[]
+  onClose: () => void; onArchive: () => void
+  onSave: (lf: { child_first: string; child_last: string; dob: string | null; gender: string | null; programme_id: string | null }, gf: { first_name: string; last_name: string; phone: string; email: string | null; preferred_contact: string | null; secondary_contact_note: string | null }) => void
+}) {
+  const g = guardian
+  const [childFirst, setChildFirst] = useState(lead.child_first)
+  const [childLast, setChildLast] = useState(lead.child_last)
+  const [dob, setDob] = useState(lead.dob ?? '')
+  const [gender, setGender] = useState(lead.gender ?? '')
+  const [progId, setProgId] = useState(lead.programme_id ?? '')
+  const [firstName, setFirstName] = useState(g?.first_name ?? '')
+  const [lastName, setLastName] = useState(g?.last_name ?? '')
+  const [phone, setPhone] = useState(g?.phone ?? '')
+  const [email, setEmail] = useState(g?.email ?? '')
+  const [prefContact, setPrefContact] = useState(g?.preferred_contact ?? '')
+  const [secondContact, setSecondContact] = useState(g?.secondary_contact_note ?? '')
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 310 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 6, padding: '22px 24px', width: 440, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${LC.orange}` }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Edit profile — {lead.child_first} {lead.child_last}</h3>
+          <LQuiet onClick={onClose}>✕</LQuiet>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: LC.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Child</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={LLBL}>First name<input value={childFirst} onChange={e => setChildFirst(e.target.value)} style={LINP} /></label>
+          <label style={LLBL}>Last name<input value={childLast} onChange={e => setChildLast(e.target.value)} style={LINP} /></label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={LLBL}>Date of birth<input type="date" value={dob} onChange={e => setDob(e.target.value)} style={LINP} /></label>
+          <label style={LLBL}>Gender<select value={gender} onChange={e => setGender(e.target.value)} style={LINP}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></label>
+        </div>
+        <label style={{ ...LLBL, marginBottom: 14 }}>Programme
+          <select value={progId} onChange={e => setProgId(e.target.value)} style={LINP}>
+            <option value="">— unassigned —</option>
+            {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <div style={{ fontSize: 11, fontWeight: 700, color: LC.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Guardian</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={LLBL}>First name<input value={firstName} onChange={e => setFirstName(e.target.value)} style={LINP} /></label>
+          <label style={LLBL}>Last name<input value={lastName} onChange={e => setLastName(e.target.value)} style={LINP} /></label>
+        </div>
+        <label style={LLBL}>Phone<input value={phone} onChange={e => setPhone(e.target.value)} style={LINP} /></label>
+        <label style={LLBL}>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} style={LINP} /></label>
+        <label style={LLBL}>Preferred contact<select value={prefContact} onChange={e => setPrefContact(e.target.value)} style={LINP}><option value="">—</option><option>Phone call</option><option>Text / SMS</option><option>Email</option></select></label>
+        <label style={{ ...LLBL, marginBottom: 16 }}>Second guardian / contact
+          <textarea value={secondContact} onChange={e => setSecondContact(e.target.value)} placeholder="e.g. Dad — John Smith, 0412 345 678" rows={2} style={{ ...LINP, resize: 'vertical' as const }} />
+        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={onArchive} style={{ fontFamily: LPROFILE_FONT, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 10px', background: 'none', border: `1px solid ${LC.line}`, color: LC.red }}>Archive lead…</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <LQuiet onClick={onClose}>Cancel</LQuiet>
+            <LBtn onClick={() => onSave({ child_first: childFirst.trim(), child_last: childLast.trim(), dob: dob || null, gender: gender || null, programme_id: progId || null }, { first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim(), email: email.trim() || null, preferred_contact: prefContact || null, secondary_contact_note: secondContact.trim() || null })}>Save changes</LBtn>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface ProfilePanelProps {
   lead: Lead
   guardian: Guardian | undefined
@@ -218,30 +341,15 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
   const [lossReason, setLossReason] = useState('Price')
   const [lossFollowup, setLossFollowup] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })
   const [showCallMenu, setShowCallMenu] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [textMsgOpen, setTextMsgOpen] = useState(false)
+  const [textMsg, setTextMsg] = useState('')
 
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const prog = programmes.find(p => p.id === lead.programme_id)
-  const statusC = STATUS_COLOURS[lead.status] ?? { background: '#6B7280', color: C.WHITE }
-  const leadActivities = activities.filter(a => a.lead_id === lead.id)
+  const leadActivities = [...activities.filter(a => a.lead_id === lead.id)].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  function submitNote() {
-    if (!note.trim()) return
-    startTransition(async () => {
-      await addNote(lead.id, user.id, note.trim())
-      setNote('')
-    })
-  }
-
-  function doArchive() {
-    const reason = window.prompt('Reason for archiving (e.g. Spam / test enquiry, Duplicate record, Entered in error, Parent requested removal, Other):')
-    if (!reason?.trim()) return
-    startTransition(async () => {
-      await archiveLead(lead.id, user.id, reason.trim())
-      onClose()
-    })
-  }
-
-  // Fields already shown in structured sections — exclude from the extra info dump
   const KNOWN_FIELDS = new Set([
     'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
     'source', 'referrer_name', 'utm_source', 'utm_medium', 'utm_campaign',
@@ -254,23 +362,21 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
     ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
     : []
   const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
+  const bookable = lead.status === 'new' || lead.status === 'noshow' || lead.status === 'nurture'
+  const statusColors: Record<string, string> = { new: C.RED, booked: C.YELLOW, noshow: C.RED, won: C.GREEN, nurture: C.MUTED, lost: C.MUTED }
+  const statusBg = statusColors[lead.status] ?? C.MUTED
 
   return (
     <>
       {showBooking && <BookingModal leadId={lead.id} userId={user.id} programmes={programmes} onClose={() => setShowBooking(false)} />}
       {showEnrol && <EnrolModal leadId={lead.id} userId={user.id} formReceived={lead.form_received} onClose={() => setShowEnrol(false)} />}
       {showLoss && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: C.WHITE, width: 360, padding: 24, border: `1px solid ${C.BORDER}` }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 310, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: C.WHITE, width: 360, padding: 24, border: `1px solid ${C.BORDER}` }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Didn&apos;t enrol — what now?</div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
               {(['nurture', 'lost'] as const).map(m => (
-                <button key={m} onClick={() => setLossMode(m)} style={{
-                  flex: 1, padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  background: lossMode === m ? C.INK : C.WHITE,
-                  color: lossMode === m ? C.WHITE : C.MUTED,
-                  border: `1px solid ${lossMode === m ? C.INK : C.BORDER}`,
-                }}>
+                <button key={m} onClick={() => setLossMode(m)} style={{ flex: 1, padding: '8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: lossMode === m ? C.INK : C.WHITE, color: lossMode === m ? C.WHITE : C.MUTED, border: `1px solid ${lossMode === m ? C.INK : C.BORDER}` }}>
                   {m === 'nurture' ? '🌱 Nurture' : '✗ Lost'}
                 </button>
               ))}
@@ -279,82 +385,153 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
               {lossMode === 'nurture' ? 'Follow up later — stays in system with a future date' : 'Dead lead — no further follow-up'}
             </div>
             <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Reason</label>
-            <select value={lossReason} onChange={e => setLossReason(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }}>
+            <select value={lossReason} onChange={e => setLossReason(e.target.value)} style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }}>
               {LOSS_REASONS.map(r => <option key={r}>{r}</option>)}
             </select>
             {lossMode === 'nurture' && (
               <>
                 <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Follow-up date</label>
-                <input type="date" value={lossFollowup} onChange={e => setLossFollowup(e.target.value)}
-                  style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }} />
+                <input type="date" value={lossFollowup} onChange={e => setLossFollowup(e.target.value)} style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }} />
               </>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowLoss(false)} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-              <button onClick={() => {
-                setShowLoss(false)
-                if (lossMode === 'nurture') startTransition(() => markDidntEnrol(lead.id, lossReason, user.id, lossFollowup))
-                else startTransition(() => markLost(lead.id, lossReason, user.id))
-              }} style={{ flex: 1, padding: '10px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+              <button onClick={() => { setShowLoss(false); if (lossMode === 'nurture') startTransition(() => markDidntEnrol(lead.id, lossReason, user.id, lossFollowup)); else startTransition(() => markLost(lead.id, lossReason, user.id)) }}
+                style={{ flex: 1, padding: '10px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                 {lossMode === 'nurture' ? 'Move to nurture' : 'Mark lost'}
               </button>
             </div>
           </div>
         </div>
       )}
+      {editOpen && (
+        <LeadsEditModal
+          lead={lead} guardian={guardian} programmes={programmes}
+          onClose={() => setEditOpen(false)}
+          onArchive={() => { setEditOpen(false); setArchiveOpen(true) }}
+          onSave={(lf, gf) => { setEditOpen(false); if (guardian) startTransition(() => updateLeadProfile(lead.id, guardian.id, user.id, lf, gf)) }}
+        />
+      )}
+      {archiveOpen && (
+        <LeadsArchiveModal
+          onClose={() => setArchiveOpen(false)}
+          onConfirm={(reason) => { setArchiveOpen(false); onClose(); startTransition(() => archiveLeadWithReason(lead.id, user.id, reason)) }}
+        />
+      )}
 
       <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={onClose} />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, maxWidth: '100vw',
-        background: C.WHITE, borderLeft: `3px solid ${C.ORANGE}`, zIndex: 201,
-        display: 'flex', flexDirection: 'column', overflowY: 'auto',
-      }}>
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>{lead.child_first} {lead.child_last}</div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ ...statusC, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{STATUS_LABELS[lead.status]}</span>
-              {prog && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.INK, fontWeight: 600 }}>{prog.name}</span>}
-              {lead.site && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.MUTED }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: C.MUTED, lineHeight: 1.6 }}>
-              <span>Enquired {fmtDate(lead.received_at)}</span>
-              {lead.source && <span> · {lead.source}</span>}
-              {lead.trial_at && <span> · Trial {fmtDateTime(lead.trial_at)}</span>}
-            </div>
-            {guardian && (
-              <div style={{ marginTop: 4, fontSize: 12, color: C.INK, fontWeight: 600 }}>
-                {guardian.first_name} {guardian.last_name} · {guardian.phone}
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, maxWidth: '100vw', background: '#fff', borderLeft: `3px solid ${LC.orange}`, zIndex: 201, display: 'flex', flexDirection: 'column' }}>
+        {/* Header — fixed, non-scrollable */}
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${LC.line}`, background: '#FCFAF7', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 18, color: LC.ink }}>{lead.child_first} {lead.child_last}</div>
+              <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ background: statusBg, color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: 0.4 }}>{STATUS_LABELS[lead.status]}</span>
+                {prog && <span style={{ fontSize: 11, fontWeight: 400, color: LC.muted }}>{prog.name}</span>}
               </div>
-            )}
+              <div style={{ marginTop: 5, fontSize: 12, color: LC.muted, fontWeight: 400 }}>
+                Enquired {fmtDate(lead.received_at)}{lead.source ? ` · ${lead.source}` : ''}{lead.trial_at ? ` · Trial ${fmtDateTime(lead.trial_at)}` : ''}
+              </div>
+              {guardian && (
+                <div style={{ fontSize: 12.5, fontWeight: 400, color: LC.ink, marginTop: 2 }}>
+                  {guardian.first_name} {guardian.last_name} · {guardian.phone}
+                </div>
+              )}
+              {siblings.length > 0 && (
+                <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: LC.muted }}>FAMILY:</span>
+                  {siblings.map(s => (
+                    <span key={s.id} style={{ fontSize: 11, fontWeight: 400, background: LC.sand, border: `1px solid ${LC.line}`, padding: '2px 7px', color: LC.ink }}>{s.child_first} · {STATUS_LABELS[s.status]}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <LQuiet onClick={() => setEditOpen(true)}>Edit</LQuiet>
+              <LQuiet onClick={onClose}>✕</LQuiet>
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED, lineHeight: 1, flexShrink: 0 }}>×</button>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
+            <div style={{ position: 'relative' }}>
+              <LBtn onClick={() => setShowCallMenu(v => !v)} color={LC.ink}>📞 Call</LBtn>
+              {showCallMenu && (
+                <div style={{ position: 'absolute', top: '105%', left: 0, background: '#fff', border: `1px solid ${LC.line}`, zIndex: 10, minWidth: 220, boxShadow: '0 6px 20px rgba(0,0,0,.15)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: LC.muted, textTransform: 'uppercase', letterSpacing: 1, padding: '6px 10px', borderBottom: `1px solid ${LC.lineSoft}` }}>I called — what happened?</div>
+                  {CALL_OUTCOMES.map(o => (
+                    <button key={o} onClick={() => { setShowCallMenu(false); startTransition(() => logCallOutcome(lead.id, o, user.id)) }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: LPROFILE_FONT, fontSize: 12.5, fontWeight: 400, padding: '8px 10px', background: 'none', border: 'none', borderBottom: `1px solid ${LC.lineSoft}`, cursor: 'pointer', color: LC.ink }}>
+                      {o}
+                    </button>
+                  ))}
+                  <button onClick={() => { setShowCallMenu(false); setTextMsgOpen(true) }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: LPROFILE_FONT, fontSize: 12.5, fontWeight: 400, padding: '8px 10px', background: 'none', border: 'none', cursor: 'pointer', color: LC.muted }}>
+                    Other — add a note
+                  </button>
+                </div>
+              )}
+            </div>
+            <LQuiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg('') }}>💬 Log text</LQuiet>
+            <LQuiet onClick={() => startTransition(() => logEmail(lead.id, user.id))}>✉ Log email</LQuiet>
+            {bookable && <LBtn onClick={() => setShowBooking(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</LBtn>}
+            {(lead.status === 'booked' || lead.status === 'nurture') && (
+              <LBtn onClick={() => setShowEnrol(true)} color={LC.green}>💰 Make the sale</LBtn>
+            )}
+            {lead.status === 'booked' && !lead.confirmation_sent_at && (
+              <LQuiet onClick={() => startTransition(() => sendConfirmation(lead.id, user.id))}>Send confirmation</LQuiet>
+            )}
+            {lead.status === 'booked' && <LQuiet onClick={() => setShowLoss(true)}>Didn&apos;t enrol</LQuiet>}
+            {lead.status === 'booked' && <LQuiet onClick={() => { if (window.confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, user.id)) }}>No-show</LQuiet>}
+            {lead.status === 'won' && !lead.verified_at && isAdmin && <LBtn onClick={() => startTransition(() => verifyLead(lead.id, user.id))} color={LC.green}>Verify sale ✓</LBtn>}
+          </div>
+
+          {/* Log text inline */}
+          {textMsgOpen && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <input value={textMsg} onChange={e => setTextMsg(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && textMsg.trim()) { startTransition(() => logText(lead.id, user.id, textMsg.trim())); setTextMsg(''); setTextMsgOpen(false) } }}
+                placeholder="What did you send?" autoFocus
+                style={{ flex: 1, padding: '6px 8px', border: `1px solid ${LC.line}`, fontSize: 12, fontFamily: LPROFILE_FONT }} />
+              <button onClick={() => { if (textMsg.trim()) { startTransition(() => logText(lead.id, user.id, textMsg.trim())); setTextMsg(''); setTextMsgOpen(false) } }}
+                style={{ fontFamily: LPROFILE_FONT, fontWeight: 700, fontSize: 12, padding: '6px 12px', background: LC.ink, color: '#fff', border: 'none', cursor: 'pointer' }}>Log</button>
+            </div>
+          )}
+
+          {/* Jotform / verification status */}
+          <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {lead.form_received
+              ? <span style={{ fontSize: 10.5, fontWeight: 700, color: LC.green, background: LC.greenBg, padding: '2px 8px', borderRadius: 3 }}>Jotform ✓</span>
+              : <span style={{ fontSize: 10.5, fontWeight: 600, color: LC.muted, background: LC.sand, padding: '2px 8px', borderRadius: 3 }}>Jotform pending</span>}
+            {lead.status === 'won' && (lead.verified_at
+              ? <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', background: LC.green, padding: '2px 8px', borderRadius: 3 }}>Sale verified ✓</span>
+              : <span style={{ fontSize: 10.5, fontWeight: 600, color: LC.yellow, background: LC.yellowBg, padding: '2px 8px', borderRadius: 3 }}>Sale — pending admin</span>)}
+          </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 120px' }}>
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
           {/* Child details */}
           <Section title="Child">
             <Row label="Date of birth" value={lead.dob ? `${fmtDate(lead.dob)} (${age(lead.dob)})` : '—'} />
-            <Row label="Gender" value={lead.gender ?? '—'} />
+            {lead.gender && <Row label="Gender" value={lead.gender} />}
             <Row label="Source" value={lead.source ?? '—'} />
             {lead.referrer_name && <Row label="Referred by" value={lead.referrer_name} />}
             {utmCampaign && <Row label="Campaign" value={utmCampaign} />}
-            <Row label="Jotform received" value={lead.form_received ? '✓ Yes' : '✗ No'} valueColor={lead.form_received ? C.GREEN : C.RED} />
+            <Row label="Jotform" value={lead.form_received ? '✓ Received' : '✗ Pending'} valueColor={lead.form_received ? C.GREEN : C.RED} />
           </Section>
 
-          {/* Guardian */}
           {guardian && (
             <Section title="Guardian">
               <Row label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
               <Row label="Phone" value={guardian.phone} />
               {guardian.email && <Row label="Email" value={guardian.email} />}
               {guardian.preferred_contact && <Row label="Preferred contact" value={guardian.preferred_contact} />}
+              {guardian.secondary_contact_note && <Row label="Second contact" value={guardian.secondary_contact_note} longText={guardian.secondary_contact_note.length > 50} />}
             </Section>
           )}
 
-          {/* Family */}
           {siblings.length > 0 && (
             <Section title="Family">
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -370,7 +547,6 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             </Section>
           )}
 
-          {/* Trial info */}
           {(lead.trial_at || lead.status === 'won') && (
             <Section title="Trial / Enrolment">
               {lead.trial_at && <Row label="Trial" value={fmtDateTime(lead.trial_at)} />}
@@ -382,7 +558,6 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             </Section>
           )}
 
-          {/* Nurture */}
           {lead.status === 'nurture' && lead.nurture_followup_at && (
             <Section title="Nurture">
               <Row label="Follow-up date" value={fmtDate(lead.nurture_followup_at)} />
@@ -390,7 +565,6 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             </Section>
           )}
 
-          {/* Extra fields from enquiry not already shown above */}
           {extraFields.length > 0 && (
             <Section title="Additional info">
               {extraFields.map(([k, v]) => (
@@ -399,107 +573,30 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             </Section>
           )}
 
-          {/* Add note */}
           <Section title="Add note">
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-              placeholder="Type a note…"
-              style={{ width: '100%', padding: 8, border: `1px solid ${C.BORDER}`, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-            />
-            <button onClick={submitNote} disabled={!note.trim() || pending}
-              style={{ marginTop: 6, padding: '8px 16px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, opacity: !note.trim() ? 0.5 : 1 }}>
-              {pending ? 'Saving…' : 'Add note'}
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={note} onChange={e => setNote(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && note.trim()) { startTransition(() => addNote(lead.id, user.id, note.trim())); setNote('') } }}
+                placeholder="Add a note…" style={{ flex: 1, padding: '7px 8px', border: `1px solid ${LC.line}`, fontSize: 13, fontFamily: LPROFILE_FONT }} />
+              <button onClick={() => { if (note.trim()) { startTransition(() => addNote(lead.id, user.id, note.trim())); setNote('') } }} disabled={!note.trim() || pending}
+                style={{ padding: '7px 14px', background: LC.ink, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: LPROFILE_FONT, opacity: !note.trim() ? 0.5 : 1 }}>
+                {pending ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </Section>
 
-          {/* Timeline */}
           <Section title="Timeline">
-            {leadActivities.length === 0 && <div style={{ fontSize: 13, color: C.MUTED }}>No activity yet</div>}
             {leadActivities.map(a => (
-              <div key={a.id} style={{ borderLeft: `2px solid ${C.BORDER}`, paddingLeft: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: C.MUTED }}>{new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
-                <div style={{ fontSize: 13 }}>{a.body}</div>
+              <div key={a.id} style={{ borderLeft: `2px solid ${LC.line}`, paddingLeft: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: LC.muted, fontWeight: 400 }}>{new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
+                <div style={{ fontSize: 12.5, color: LC.ink }}>{a.body}</div>
               </div>
             ))}
+            <div style={{ borderLeft: `2px solid ${LC.lineSoft}`, paddingLeft: 10, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: LC.muted, fontWeight: 400 }}>{fmtDate(lead.received_at)} · {lead.source ?? 'unknown source'}</div>
+              <div style={{ fontSize: 12.5, color: LC.muted }}>Enquiry received</div>
+            </div>
           </Section>
-        </div>
-
-        {/* Action bar */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.WHITE, borderTop: `1px solid ${C.BORDER}`, padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'stretch' }}>
-          {/* Call dropdown */}
-          <div style={{ position: 'relative', display: 'flex' }}>
-            <button onClick={() => setShowCallMenu(v => !v)}
-              style={{ padding: '9px 12px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              📞 Call ▾
-            </button>
-            {showCallMenu && (
-              <div style={{ position: 'absolute', bottom: '100%', left: 0, background: C.WHITE, border: `1px solid ${C.BORDER}`, zIndex: 10, minWidth: 200 }}>
-                {CALL_OUTCOMES.map(o => (
-                  <button key={o} onClick={() => {
-                    setShowCallMenu(false)
-                    startTransition(() => logCallOutcome(lead.id, o, user.id))
-                  }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button onClick={() => startTransition(() => logText(lead.id, user.id))}
-            style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13 }}>
-            💬 Log text
-          </button>
-          <button onClick={() => startTransition(() => logEmail(lead.id, user.id))}
-            style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13 }}>
-            ✉ Log email
-          </button>
-
-          {(lead.status === 'new' || lead.status === 'noshow') && (
-            <button onClick={() => setShowBooking(true)}
-              style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              {lead.status === 'noshow' ? 'Re-book' : 'Book Trial'}
-            </button>
-          )}
-
-          {lead.status === 'booked' && (
-            <>
-              {!lead.confirmation_sent_at && (
-                <button onClick={() => startTransition(() => sendConfirmation(lead.id, user.id))}
-                  style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                  Send confirmation
-                </button>
-              )}
-              <button onClick={() => setShowEnrol(true)}
-                style={{ padding: '9px 14px', background: C.GREEN, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                💰 Make Sale
-              </button>
-              <button onClick={() => setShowLoss(true)}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                Didn&apos;t enrol
-              </button>
-              <button onClick={() => { if (confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, user.id)) }}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                No-show
-              </button>
-            </>
-          )}
-
-          {lead.status === 'won' && !lead.verified_at && isAdmin && (
-            <button onClick={() => startTransition(() => verifyLead(lead.id, user.id))}
-              style={{ padding: '9px 14px', background: C.GREEN, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              Verify Sale ✓
-            </button>
-          )}
-
-          {isAdmin && (
-            <button onClick={doArchive}
-              style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              Archive
-            </button>
-          )}
         </div>
       </div>
     </>

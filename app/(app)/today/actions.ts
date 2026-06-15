@@ -197,9 +197,10 @@ export async function logNote(leadId: string, note: string, userId: string) {
   revalidatePath('/today')
 }
 
-export async function logText(leadId: string, userId: string) {
-  await insertActivity(leadId, userId, 'comm', 'Text sent')
+export async function logText(leadId: string, userId: string, message?: string) {
+  await insertActivity(leadId, userId, 'comm', message ? `Text sent — ${message}` : 'Text sent')
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function logEmail(leadId: string, userId: string) {
