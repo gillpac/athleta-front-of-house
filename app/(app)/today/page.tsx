@@ -24,8 +24,8 @@ export default async function TodayPage() {
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Site filter
-  const siteFilter = appUser.site
+  // Site filter — receptionist/site_lead are locked to their site; admin/management see all
+  const siteFilter = appUser.site ?? null
 
   // Build leads query
   let leadsQuery = supabase
@@ -42,24 +42,20 @@ export default async function TodayPage() {
 
   const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
 
-  const newLeads = leads.filter(l => l.status === 'new')
+  const endOfToday = todayStr + 'T23:59:59'
+  const newLeads = leads.filter(l => l.status === 'new' && (!l.next_action_at || l.next_action_at <= endOfToday))
+  const upcomingNewLeads = leads
+    .filter(l => l.status === 'new' && l.next_action_at && l.next_action_at > endOfToday)
+    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&
     l.trial_at != null &&
     l.trial_at.startsWith(todayStr)
   )
+  const bookedLeads = leads
+    .filter(l => l.status === 'booked')
+    .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
   const noShows = leads.filter(l => l.status === 'noshow')
-  const tomorrowTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.startsWith(tomorrowStr)
-  )
-  const thisWeekTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.slice(0, 10) >= dayAfterTomorrowStr &&
-    l.trial_at.slice(0, 10) <= endOfWeekStr
-  )
   const unverifiedSales = leads.filter(l => l.status === 'won' && l.verified_at == null)
 
   // Target — load for the user's site (or combined for admin/management)
@@ -164,10 +160,10 @@ export default async function TodayPage() {
     <TodayClient
       appUser={appUser}
       newLeads={newLeads}
+      upcomingNewLeads={upcomingNewLeads}
       todayTrials={todayTrials}
+      bookedLeads={bookedLeads}
       noShows={noShows}
-      tomorrowTrials={tomorrowTrials}
-      thisWeekTrials={thisWeekTrials}
       unverifiedSales={unverifiedSales}
       target={targetData}
       verifiedCount={verifiedCount}
