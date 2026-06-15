@@ -188,9 +188,11 @@ function Panel({ children, head, badge, sub, style }: {
         padding: '14px 18px 12px',
         display: 'flex', gap: 10, alignItems: 'center', background: C.card,
       }}>
-        {badge}
-        <h3 style={{ margin: 0, fontSize: 11.5, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 1.4 }}>{head}</h3>
-        {sub}
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.ink, letterSpacing: '-0.01em' }}>{head}</h3>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {sub}
+          {badge}
+        </div>
       </div>
       {children}
     </section>
@@ -642,11 +644,11 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.6 : 1, background: scheduled ? '#FCFAF7' : 'transparent' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: showSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.55 : 1, background: scheduled ? '#FAFAF9' : 'transparent' }}>
         <div>
           {scheduled && lead.next_action_at ? (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Call back</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Call back</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{formatTime(lead.next_action_at)}</div>
             </>
           ) : (
@@ -654,24 +656,29 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
               <div style={{ fontSize: 12, fontWeight: 500, color: C.ink }}>
                 {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: mins > 240 ? C.red : C.yellow }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: mins > 240 ? C.red : C.muted }}>
                 {waitLabel(mins)} waiting
               </div>
             </>
           )}
         </div>
-        <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
-          <div style={{ marginTop: 3, display: 'flex', gap: 5 }}>
-            {!lead.contacted
-              ? <Tag tone="red" solid>not contacted yet</Tag>
-              : lead.last_outcome === 'Spoke — call back later'
-                ? <Tag tone="yellow">spoke — call back later</Tag>
-                : <Tag tone="yellow">{lead.attempts} call{lead.attempts !== 1 ? 's' : ''} · not reached</Tag>}
-          </div>
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <div style={{ fontSize: 11.5, fontWeight: 600 }}>
+          {!lead.contacted
+            ? <span style={{ color: C.red }}>Not contacted</span>
+            : lead.last_outcome === 'Spoke — call back later'
+              ? <span style={{ color: C.muted }}>Spoke — call back later</span>
+              : <span style={{ color: C.muted }}>{lead.attempts} call{lead.attempts !== 1 ? 's' : ''} · not reached</span>}
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', position: 'relative' }}>
-          <Next onClick={() => setCallFor(v => !v)}>📞 Call to book</Next>
+        {showSite && (
+          <div style={{ fontSize: 11.5, fontWeight: 500, color: C.muted }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</div>
+        )}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', position: 'relative', justifyContent: 'flex-end' }}>
+          <button onClick={() => setCallFor(v => !v)} style={{
+            fontFamily: FONT, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+            borderRadius: 6, padding: '6px 12px', background: '#fff', color: C.orange,
+            border: `1px solid ${C.orange}`, whiteSpace: 'nowrap',
+          }}>📞 Call to book</button>
           <Quiet onClick={() => setBookingOpen(true)}>Book trial</Quiet>
           {callFor && <CallMenu onPick={handleCallOutcome} onClose={() => setCallFor(false)} />}
         </div>
@@ -1204,10 +1211,12 @@ export default function TodayClient({
         }
       >
         {newLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, padding: '5px 12px', background: '#FAFAF9', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Received</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Child / guardian</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Action</span>
+          <div style={{ display: 'grid', gridTemplateColumns: isMultiSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, padding: '6px 14px', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={colHead}>Received</span>
+            <span style={colHead}>Child / guardian</span>
+            <span style={colHead}>Status</span>
+            {isMultiSite && <span style={colHead}>Site</span>}
+            <span style={{ ...colHead, textAlign: 'right' }}>Action</span>
           </div>
         )}
         {newLeads.length === 0 && (
