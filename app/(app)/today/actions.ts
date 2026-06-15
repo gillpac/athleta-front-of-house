@@ -130,6 +130,8 @@ export async function markLost(leadId: string, reason: string, userId: string) {
 
 export async function sendConfirmation(leadId: string, userId: string) {
   console.log('[sendConfirmation] start', { leadId, userId })
+  console.log('[sendConfirmation] env keys present:', Object.keys(process.env).filter(k => /ZAPIER|JOTFORM/i.test(k)))
+  console.log('[sendConfirmation] zapier url set:', !!process.env.ZAPIER_EMAIL_WEBHOOK_URL)
   const supabase = await createClient()
   const admin = createAdminClient()
 
