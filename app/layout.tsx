@@ -3,7 +3,6 @@ import { Nunito_Sans } from 'next/font/google'
 
 const nunitoSans = Nunito_Sans({
   subsets: ['latin'],
-  axes: ['opsz'],
   weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 })
