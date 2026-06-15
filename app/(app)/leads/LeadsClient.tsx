@@ -484,11 +484,10 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
                 {lead.trial_at && <span style={{ marginLeft: 10 }}>Trial: {fmtDateTime(lead.trial_at)}</span>}
               </div>
             </div>
-            {isAdmin && (
-              <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap' }}>
-                {lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap', textAlign: 'right', lineHeight: 1.6 }}>
+              {isAdmin && <div>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</div>}
+              <div>{new Date(lead.received_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Australia/Melbourne' })}</div>
+            </div>
           </div>
         )
       })}
