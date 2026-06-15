@@ -282,15 +282,25 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
       }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lead.child_first} {lead.child_last}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-              <span style={{ ...statusC, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{STATUS_LABELS[lead.status]}</span>
-              {prog && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.INK }}>{prog.name}</span>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 18 }}>{lead.child_first} {lead.child_last}</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ ...statusC, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{STATUS_LABELS[lead.status]}</span>
+              {prog && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.INK, fontWeight: 600 }}>{prog.name}</span>}
               {lead.site && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.MUTED }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>}
             </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: C.MUTED, lineHeight: 1.6 }}>
+              <span>Enquired {fmtDate(lead.received_at)}</span>
+              {lead.source && <span> · {lead.source}</span>}
+              {lead.trial_at && <span> · Trial {fmtDateTime(lead.trial_at)}</span>}
+            </div>
+            {guardian && (
+              <div style={{ marginTop: 4, fontSize: 12, color: C.INK, fontWeight: 600 }}>
+                {guardian.first_name} {guardian.last_name} · {guardian.phone}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED, lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED, lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 120px' }}>
@@ -386,20 +396,12 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
         </div>
 
         {/* Action bar */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.WHITE, borderTop: `1px solid ${C.BORDER}`, padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.WHITE, borderTop: `1px solid ${C.BORDER}`, padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'stretch' }}>
           {/* Call dropdown */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', display: 'flex' }}>
             <button onClick={() => setShowCallMenu(v => !v)}
-              style={{ padding: '9px 12px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+              style={{ padding: '9px 12px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               📞 Call ▾
-            </button>
-            <button onClick={() => startTransition(() => logText(lead.id, user.id))}
-              style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13, marginLeft: 4 }}>
-              💬 Log text
-            </button>
-            <button onClick={() => startTransition(() => logEmail(lead.id, user.id))}
-              style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13, marginLeft: 4 }}>
-              ✉ Log email
             </button>
             {showCallMenu && (
               <div style={{ position: 'absolute', bottom: '100%', left: 0, background: C.WHITE, border: `1px solid ${C.BORDER}`, zIndex: 10, minWidth: 200 }}>
@@ -415,6 +417,15 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             )}
           </div>
 
+          <button onClick={() => startTransition(() => logText(lead.id, user.id))}
+            style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13 }}>
+            💬 Log text
+          </button>
+          <button onClick={() => startTransition(() => logEmail(lead.id, user.id))}
+            style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13 }}>
+            ✉ Log email
+          </button>
+
           {(lead.status === 'new' || lead.status === 'noshow') && (
             <button onClick={() => setShowBooking(true)}
               style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
@@ -426,7 +437,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             <>
               {!lead.confirmation_sent_at && (
                 <button onClick={() => startTransition(() => sendConfirmation(lead.id, user.id))}
-                  style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+                  style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                   Send confirmation
                 </button>
               )}
@@ -435,11 +446,11 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
                 💰 Make Sale
               </button>
               <button onClick={() => setShowLoss(true)}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
+                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                 Didn&apos;t enrol
               </button>
               <button onClick={() => { if (confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, user.id)) }}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
+                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                 No-show
               </button>
             </>
@@ -454,7 +465,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
 
           {isAdmin && (
             <button onClick={doArchive}
-              style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
+              style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               Archive
             </button>
           )}
@@ -484,10 +495,10 @@ function Row({ label, value, valueColor }: { label: string; value: string; value
 
 const STATUS_FILTERS = ['all', 'new', 'booked', 'noshow', 'won', 'nurture'] as const
 const STATUS_FILTER_LABELS: Record<string, string> = { all: 'All', new: 'New', booked: 'Booked', noshow: 'No-show', won: 'Enrolled', nurture: 'Nurture' }
-const DATE_FILTERS = ['all', 'today', 'this_week', 'last_week', 'this_month', 'last_month'] as const
-const DATE_FILTER_LABELS: Record<string, string> = { all: 'All dates', today: 'Today', this_week: 'This week', last_week: 'Last week', this_month: 'This month', last_month: 'Last month' }
+const DATE_FILTERS = ['all', 'today', 'this_week', 'last_week', 'this_month', 'last_month', 'custom'] as const
+const DATE_FILTER_LABELS: Record<string, string> = { all: 'All dates', today: 'Today', this_week: 'This week', last_week: 'Last week', this_month: 'This month', last_month: 'Last month', custom: 'Custom range…' }
 
-function isInDateRange(isoDate: string, filter: string): boolean {
+function isInDateRange(isoDate: string, filter: string, customFrom?: string, customTo?: string): boolean {
   if (filter === 'all') return true
   const d = new Date(isoDate)
   const now = new Date()
@@ -498,12 +509,16 @@ function isInDateRange(isoDate: string, filter: string): boolean {
   const monday = new Date(today); monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1))
   if (filter === 'this_week') return d >= monday
   const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7)
-  const thisMondayDate = monday
-  if (filter === 'last_week') return d >= lastMonday && d < thisMondayDate
+  if (filter === 'last_week') return d >= lastMonday && d < monday
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   if (filter === 'this_month') return d >= firstOfMonth
   const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   if (filter === 'last_month') return d >= firstOfLastMonth && d < firstOfMonth
+  if (filter === 'custom') {
+    if (customFrom && d < new Date(customFrom + 'T00:00:00')) return false
+    if (customTo && d > new Date(customTo + 'T23:59:59')) return false
+    return true
+  }
   return true
 }
 
@@ -513,6 +528,8 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [siteFilter, setSiteFilter] = useState<string>('all')
   const [dateFilter, setDateFilter] = useState<string>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const guardianMap = useMemo(() => {
@@ -526,7 +543,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
     return leads.filter(l => {
       if (statusFilter !== 'all' && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
-      if (!isInDateRange(l.received_at, dateFilter)) return false
+      if (!isInDateRange(l.received_at, dateFilter, customFrom, customTo)) return false
       if (!q) return true
       const g = guardianMap[l.guardian_id]
       const childName = `${l.child_first} ${l.child_last}`.toLowerCase()
@@ -534,7 +551,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
       const phone = g?.phone ?? ''
       return childName.includes(q) || guardianName.includes(q) || phone.includes(q)
     })
-  }, [leads, statusFilter, siteFilter, search, guardianMap])
+  }, [leads, statusFilter, siteFilter, dateFilter, customFrom, customTo, search, guardianMap])
 
   const selectedLead = selectedId ? leads.find(l => l.id === selectedId) : null
   const siblings = selectedLead
@@ -582,12 +599,21 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 12, color: C.MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>Date received:</label>
         <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
           style={{ padding: '5px 10px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer' }}>
           {DATE_FILTERS.map(f => <option key={f} value={f}>{DATE_FILTER_LABELS[f]}</option>)}
         </select>
+        {dateFilter === 'custom' && (
+          <>
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+            <span style={{ fontSize: 12, color: C.MUTED }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+          </>
+        )}
       </div>
 
       {/* Lead rows */}

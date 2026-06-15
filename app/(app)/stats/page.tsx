@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import StatsClient from './StatsClient'
 import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteSettings } from '@/types'
@@ -12,10 +11,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const { data: appUser } = await supabase.from('app_users').select('*').eq('id', authUser.id).single<AppUser>()
   if (!appUser) redirect('/login?error=no_profile')
 
-  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
-  const cookieStore = await cookies()
-  const preferredSite = isAdmin ? (cookieStore.get('preferred_site')?.value ?? 'all') : null
-  const siteFilter = appUser.site ?? (isAdmin && preferredSite !== 'all' ? preferredSite : null)
+  const siteFilter = appUser.site ?? null
 
   const params = await searchParams
   const todayStr = new Date().toISOString().split('T')[0]
@@ -50,7 +46,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
 
   // All time leads for source breakdown (last 90 days)
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-  let sourceQ = supabase.from('leads').select('source, utm_source, utm_medium, utm_campaign, received_at').gte('received_at', ninetyDaysAgo).is('archived_at', null)
+  let sourceQ = supabase.from('leads').select('source, utm_source, utm_medium, utm_campaign, received_at, site').gte('received_at', ninetyDaysAgo).is('archived_at', null)
   if (siteFilter) sourceQ = sourceQ.eq('site', siteFilter)
   const { data: sourceLeads } = await sourceQ
 
