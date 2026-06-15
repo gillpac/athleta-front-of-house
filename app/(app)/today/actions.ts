@@ -250,6 +250,19 @@ export async function sendJotform(leadId: string, userId: string) {
   revalidatePath('/leads')
 }
 
+/** Returns the pre-filled Jotform link for a lead, so staff can copy it
+ *  and paste into a text message. Does not change any data. */
+export async function getJotformLink(leadId: string): Promise<string | null> {
+  const admin = createAdminClient()
+  const { data: lead } = await admin
+    .from('leads')
+    .select('*, guardian:guardians(*)')
+    .eq('id', leadId)
+    .single()
+  if (!lead) return null
+  return buildJotformUrl(lead.site, lead, lead.guardian as Record<string, string> | null)
+}
+
 export async function resendForm(leadId: string, userId: string) {
   const admin = createAdminClient()
   const { data: lead } = await admin

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import type { Lead, Guardian, Programme } from '@/types'
 import {
   logCallOutcome, bookTrial, makeSale, markDidntEnrol, markLost, markNoShow,
   sendConfirmation, verifySale, logNote, logText, logEmail,
-  resendForm, markFormReceived, sendJotform, updateLeadProfile, archiveLeadWithReason,
+  resendForm, markFormReceived, sendJotform, getJotformLink, updateLeadProfile, archiveLeadWithReason,
 } from '../today/actions'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -549,6 +549,21 @@ export function ProfilePanel({
   const [emailMsgOpen, setEmailMsgOpen] = useState(false)
   const [emailMsg, setEmailMsg] = useState('')
   const [lossOpen, setLossOpen] = useState(false)
+  const [jotformLink, setJotformLink] = useState<string | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  useEffect(() => {
+    setLinkCopied(false)
+    getJotformLink(lead.id).then(setJotformLink).catch(() => setJotformLink(null))
+  }, [lead.id])
+
+  function copyJotformLink() {
+    if (!jotformLink) return
+    navigator.clipboard.writeText(jotformLink).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    }).catch(() => {})
+  }
 
   const isAdmin = userRole === 'admin' || userRole === 'management'
   const siblings = allLeads.filter(l => l.guardians.id === lead.guardians.id && l.id !== lead.id)
@@ -692,6 +707,9 @@ export function ProfilePanel({
                   ? (<><Tag tone="yellow">Jotform pending</Tag><Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet><Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet></>)
                   : <Quiet onClick={() => startTransition(() => sendJotform(lead.id, userId))}>Send Jotform</Quiet>
               }
+              {jotformLink && !lead.form_received && (
+                <Quiet onClick={copyJotformLink}>{linkCopied ? 'Copied ✓' : 'Copy form link'}</Quiet>
+              )}
               {lead.status === 'won' && (lead.verified_at ? <Tag tone="green" solid>sale ✓</Tag> : <Tag tone="yellow">sale — pending admin</Tag>)}
             </div>
           </div>
