@@ -646,7 +646,7 @@ export function ProfilePanel({
               <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg(''); setTextMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>✉ Log email</Quiet>
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
               {(lead.status === 'new' || lead.status === 'noshow') && lead.attempts >= 10 && (
-                <Quiet onClick={() => { if (window.confirm(`Mark unreachable after ${lead.attempts} attempts? This closes the lead.`)) startTransition(() => markUnreachable(lead.id, userId)) }}>Unreachable</Quiet>
+                <Quiet onClick={() => { if (window.confirm(`Mark unreachable after ${lead.attempts} attempts? They'll move to the nurture list for follow-up.`)) startTransition(() => markUnreachable(lead.id, userId)) }}>Unreachable</Quiet>
               )}
               {lead.status === 'booked' && <Quiet onClick={() => setBookingOpen(true)}>Edit trial</Quiet>}
               {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}

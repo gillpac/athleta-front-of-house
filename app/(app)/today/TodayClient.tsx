@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useOptimistic } from 'react'
+import { useState, useTransition, useOptimistic, useRef, useEffect } from 'react'
 import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
 import {
   logCallOutcome,
@@ -257,6 +257,15 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
   const [selected, setSelected] = useState<string | null>(null) // ISO string of chosen follow-up
   const [customDate, setCustomDate] = useState(tomorrowDateStr())
   const [showCustom, setShowCustom] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [onClose])
 
   function tileStyle(active: boolean, accent = C.ink) {
     return {
@@ -272,7 +281,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
       onPick(step!, selected)
     }
     return (
-      <div style={{
+      <div ref={menuRef} style={{
         position: 'absolute', top: '105%', left: 0,
         background: '#fff', border: `1px solid ${C.line}`,
         borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 280, padding: 12,
@@ -335,6 +344,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
 
   return (
     <div
+      ref={menuRef}
       style={{
         position: 'absolute', top: '105%', left: 0,
         background: '#fff', border: `1px solid ${C.line}`,
@@ -652,7 +662,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', position: 'relative' }}>
           <Next onClick={() => setCallFor(v => !v)}>📞 Call to book</Next>
-          <Quiet onClick={() => setBookingOpen(true)}>book directly</Quiet>
+          <Quiet onClick={() => setBookingOpen(true)}>Book trial</Quiet>
           {callFor && <CallMenu onPick={handleCallOutcome} onClose={() => setCallFor(false)} />}
         </div>
       </div>

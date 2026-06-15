@@ -132,14 +132,19 @@ export async function markUnreachable(leadId: string, userId: string) {
   const { data: before } = await supabase.from('leads').select('*').eq('id', leadId).single()
   const attempts = before?.attempts ?? 0
   const reason = `Unreachable after ${attempts} attempts`
+  // Move to nurture (not lost) so they stay on a follow-up list and can be
+  // tried again later. Manual action only — never automatic.
+  const followup = new Date(); followup.setDate(followup.getDate() + 14)
+  const followupStr = followup.toISOString().split('T')[0]
   await supabase.from('leads').update({
-    status: 'lost',
+    status: 'nurture',
     lost_reason: reason,
-    next_action_at: null,
+    nurture_followup_at: followupStr,
+    next_action_at: followup.toISOString(),
     prev_state: { status: before?.status, trial_at: before?.trial_at },
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'status', `Marked unreachable — no contact after ${attempts} attempts`)
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_unreachable', before, after: { status: 'lost', reason } })
+  await insertActivity(leadId, userId, 'status', `Marked unreachable after ${attempts} attempts — moved to nurture for follow-up`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_unreachable', before, after: { status: 'nurture', reason } })
   revalidatePath('/today')
   revalidatePath('/leads')
 }
