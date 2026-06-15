@@ -356,6 +356,15 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
           }}
         >{o}</button>
       ))}
+      <button
+        onClick={() => onPick('__open_profile__')}
+        style={{
+          display: 'block', width: '100%', textAlign: 'left',
+          fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
+          padding: '8px 10px', background: 'none', border: 'none',
+          cursor: 'pointer', color: C.muted,
+        }}
+      >Other — add a note</button>
     </div>
   )
 }
@@ -742,6 +751,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
 
   function handleCall(outcome: string, followUpAt?: string) {
     setCallOpen(false)
+    if (outcome === '__open_profile__') return // profile is already open — user can add note
     startTransition(async () => {
       await logCallOutcome(lead.id, outcome, userId, followUpAt)
     })
@@ -869,7 +879,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
 
             <ProfileSection title="Add note">
               <div style={{ display: 'flex', gap: 6 }}>
-                <input value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note…" style={{ ...inp, flex: 1 }} />
+                <input value={note} onChange={e => setNote(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && note.trim()) { startTransition(() => logNote(lead.id, note.trim(), userId)); setNote('') } }} placeholder="Add a note…" style={{ ...inp, flex: 1 }} />
                 <Next onClick={() => { if (note.trim()) { startTransition(() => logNote(lead.id, note.trim(), userId)); setNote('') } }}>Save</Next>
               </div>
               {pending && <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginTop: 4 }}>Saving…</div>}
@@ -1011,6 +1021,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
 
   function handleCallOutcome(outcome: string, followUpAt?: string) {
     setCallFor(false)
+    if (outcome === '__open_profile__') { onOpen(); return }
     if (outcome === 'Spoke — booking now') {
       startTransition(async () => {
         await logCallOutcome(lead.id, outcome, userId)
