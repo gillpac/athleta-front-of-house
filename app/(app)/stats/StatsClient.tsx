@@ -190,7 +190,7 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
     <div style={{ maxWidth: 800 }}>
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.BORDER}`, marginBottom: 24 }}>
-        {(['overview', 'sources', ...(isManagement ? ['targets'] : [])] as string[]).map(t => (
+        {(['overview', 'sources', ...(isAdmin ? ['targets'] : [])] as string[]).map(t => (
           <button key={t} onClick={() => setTab(t as typeof tab)}
             style={{
               padding: '10px 18px', fontSize: 13, fontWeight: tab === t ? 700 : 500, cursor: 'pointer',
@@ -293,7 +293,7 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
         </>
       )}
 
-      {tab === 'targets' && isManagement && (
+      {tab === 'targets' && isAdmin && (
         <>
           <Section title={`Set targets — ${monthLabel(monthStart)}`}>
             <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 16 }}>
