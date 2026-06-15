@@ -631,6 +631,7 @@ export function ProfilePanel({
               <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg('') }}>💬 Log text</Quiet>
               <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg('') }}>✉ Log email</Quiet>
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
+              {lead.status === 'booked' && <Quiet onClick={() => setBookingOpen(true)}>Edit trial</Quiet>}
               {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}
               {lead.status === 'booked' && !lead.confirmation_sent_at && (
                 <Quiet onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Quiet>
@@ -699,17 +700,10 @@ export function ProfilePanel({
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px', fontFamily: FONT }}>
             <ProfileSection title="Child">
+              <InfoRow label="Site" value={lead.site === 'altona_north' ? 'Altona North' : 'Coolaroo'} />
               <InfoRow label="Date of birth" value={lead.dob ? `${formatDate(lead.dob)} (${age} yrs)` : '—'} />
               {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
               <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : lead.form_sent_at ? '⧗ Sent — awaiting return' : '— not yet sent'} color={lead.form_received ? C.green : lead.form_sent_at ? C.yellow : C.muted} />
-            </ProfileSection>
-
-            <ProfileSection title="Enquiry">
-              <InfoRow label="Received" value={formatDate(lead.received_at)} />
-              {utmSource && <InfoRow label="Source" value={utmSource} />}
-              {utmMedium && <InfoRow label="Medium" value={utmMedium} />}
-              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
-              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
             </ProfileSection>
 
             <ProfileSection title="Guardian">
@@ -750,6 +744,14 @@ export function ProfilePanel({
                 ))}
               </ProfileSection>
             )}
+
+            <ProfileSection title="Enquiry">
+              <InfoRow label="Received" value={fmtDateTime(lead.received_at)} />
+              {utmSource && <InfoRow label="Source" value={utmSource} />}
+              {utmMedium && <InfoRow label="Medium" value={utmMedium} />}
+              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
+              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
+            </ProfileSection>
 
             <ProfileSection title="Add note">
               <div style={{ display: 'flex', gap: 6 }}>
