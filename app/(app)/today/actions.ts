@@ -115,6 +115,46 @@ export async function markLost(leadId: string, reason: string, userId: string) {
 
 export async function sendConfirmation(leadId: string, userId: string) {
   const supabase = await createClient()
+  const admin = createAdminClient()
+
+  // If Zapier webhook is configured, send via email API
+  if (process.env.ZAPIER_EMAIL_WEBHOOK_URL) {
+    const { data: lead } = await admin
+      .from('leads')
+      .select('*, guardian:guardians(*), programme:programmes(name)')
+      .eq('id', leadId)
+      .single()
+
+    if (lead) {
+      const guardian = lead.guardian as Record<string, string> | null
+      const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
+      const trialDate = lead.trial_at
+        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+        : 'TBC'
+      const guardianFirstName = guardian?.first_name ?? 'there'
+      const sig = lead.site === 'altona_north'
+        ? `<p style="color:#555;font-size:13px;margin-top:24px;"><strong>Athleta Gymnastics — Altona North</strong><br>📞 (03) 9999 0002<br>🌐 www.athletagymnastics.com.au</p>`
+        : `<p style="color:#555;font-size:13px;margin-top:24px;"><strong>Athleta Gymnastics — Coolaroo</strong><br>📞 (03) 9999 0001<br>🌐 www.athletagymnastics.com.au</p>`
+      const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early. Wear comfortable clothing and bare feet for gymnastics.</p><p>See you soon!</p>${sig}`
+
+      await fetch(process.env.ZAPIER_EMAIL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: guardian?.email ?? null,
+          subject: `Your trial booking — ${lead.child_first} at Athleta Gymnastics`,
+          html_body: htmlBody,
+          site: lead.site,
+          guardian_email: guardian?.email,
+          child_name: `${lead.child_first} ${lead.child_last}`,
+          trial_date: trialDate,
+          programme: programmeName,
+          kind: 'confirmation',
+        }),
+      }).catch(() => null) // don't fail if Zapier is down
+    }
+  }
+
   await supabase.from('leads').update({ confirmation_sent_at: new Date().toISOString() }).eq('id', leadId)
   await insertActivity(leadId, userId, 'comm', 'Confirmation email sent')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'confirmation_sent' })
