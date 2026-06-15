@@ -53,7 +53,40 @@ function formatTime(isoStr: string): string {
 }
 
 function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+  return new Date(isoStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function fmtDateTime(isoStr: string | null): string {
+  if (!isoStr) return '—'
+  return new Date(isoStr).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+}
+
+const PROFILE_KNOWN_FIELDS = new Set([
+  'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
+  'source', 'referrer_name', 'utm_source', 'utm_medium', 'utm_campaign',
+  'child_first_1', 'child_last_1', 'dob_1', 'gender_1', 'programme_name_1', 'interest_1',
+  'child_first_2', 'child_last_2', 'dob_2', 'gender_2', 'programme_name_2', 'interest_2',
+  'child_first_3', 'child_last_3', 'dob_3', 'gender_3', 'programme_name_3', 'interest_3',
+  'child_first_4', 'child_last_4', 'dob_4', 'gender_4', 'programme_name_4', 'interest_4',
+])
+
+const FIELD_LABEL_OVERRIDES: Record<string, string> = {
+  prefDays: 'Preferred days',
+  preferred_day: 'Preferred day',
+  prior: 'Prior experience',
+  notes: 'Notes',
+  childName: 'Child name',
+  guardian: 'Guardian',
+  mobile: 'Mobile',
+  interest: 'Interest',
+}
+
+function fmtFieldLabel(key: string): string {
+  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function waitMins(receivedAt: string): number {
@@ -471,9 +504,9 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 40 }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 110 }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(23,19,14,.4)' }} onClick={onClose} />
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 430, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
+        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '94vw', background: '#fff', padding: '20px 22px', overflowY: 'auto', borderLeft: `3px solid ${C.orange}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>
@@ -542,16 +575,54 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             )}
           </div>
 
-          {/* enquiry details */}
-          <h4 style={h4s}>Original enquiry — received {formatDate(lead.received_at)}</h4>
-          <div style={{ background: C.bg, border: `1px solid ${C.lineSoft}`, borderRadius: 4, padding: '10px 12px' }}>
-            {(lead.enquiry_raw ? Object.entries(lead.enquiry_raw) : []).map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', fontSize: 12.5, fontWeight: 700, padding: '3px 0', borderBottom: `1px dashed ${C.lineSoft}` }}>
-                <span style={{ width: 150, color: C.muted }}>{k}</span>
-                <span style={{ color: '#2B2521' }}>{String(v)}</span>
+          {/* structured child / guardian info */}
+          {(() => {
+            const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
+            const extraFields = lead.enquiry_raw
+              ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !PROFILE_KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
+              : []
+            const InfoRow = ({ label, value, color }: { label: string; value: string; color?: string }) => (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ color: C.muted }}>{label}</span>
+                <span style={{ color: color ?? C.ink, fontWeight: 500 }}>{value}</span>
               </div>
-            ))}
-          </div>
+            )
+            const SectionHead = ({ title }: { title: string }) => (
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 18, marginBottom: 6 }}>{title}</div>
+            )
+            return (
+              <>
+                <SectionHead title="Child" />
+                <InfoRow label="Date of birth" value={lead.dob ? `${new Date(lead.dob).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} (${ageFrom(lead.dob)} yrs)` : '—'} />
+                {lead.gender && <InfoRow label="Gender" value={lead.gender} />}
+                <InfoRow label="Source" value={lead.source ?? '—'} />
+                {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
+                <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : '✗ Pending'} color={lead.form_received ? C.green : C.red} />
+
+                <SectionHead title="Guardian" />
+                <InfoRow label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
+                <InfoRow label="Phone" value={guardian.phone} />
+                {guardian.email && <InfoRow label="Email" value={guardian.email} />}
+                {guardian.preferred_contact && <InfoRow label="Preferred contact" value={guardian.preferred_contact} />}
+
+                {lead.trial_at && (
+                  <>
+                    <SectionHead title="Trial" />
+                    <InfoRow label="Booked for" value={fmtDateTime(lead.trial_at)} />
+                  </>
+                )}
+
+                {extraFields.length > 0 && (
+                  <>
+                    <SectionHead title="Additional info" />
+                    {extraFields.map(([k, v]) => (
+                      <InfoRow key={k} label={fmtFieldLabel(k)} value={String(v)} />
+                    ))}
+                  </>
+                )}
+              </>
+            )
+          })()}
 
           {/* note input */}
           <h4 style={h4s}>Add a note</h4>

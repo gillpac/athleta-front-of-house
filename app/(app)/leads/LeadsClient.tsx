@@ -30,13 +30,13 @@ const STATUS_LABELS: Record<string, string> = {
   lost: 'Lost',
 }
 
-const STATUS_COLOURS: Record<string, { bg: string; color: string }> = {
-  new: { bg: C.RED, color: C.WHITE },
-  booked: { bg: '#D97706', color: C.WHITE },
-  noshow: { bg: '#D97706', color: C.WHITE },
-  won: { bg: C.GREEN, color: C.WHITE },
-  nurture: { bg: '#6B7280', color: C.WHITE },
-  lost: { bg: '#9CA3AF', color: C.WHITE },
+const STATUS_COLOURS: Record<string, { background: string; color: string }> = {
+  new: { background: C.RED, color: C.WHITE },
+  booked: { background: '#D97706', color: C.WHITE },
+  noshow: { background: '#D97706', color: C.WHITE },
+  won: { background: C.GREEN, color: C.WHITE },
+  nurture: { background: '#6B7280', color: C.WHITE },
+  lost: { background: '#9CA3AF', color: C.WHITE },
 }
 
 const LOSS_REASONS = ['Too expensive', 'Not the right time', 'Too far away', 'Chose another gym', 'Other']
@@ -55,6 +55,25 @@ function age(dob: string | null): string {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const FIELD_LABEL_OVERRIDES: Record<string, string> = {
+  prefDays: 'Preferred days',
+  preferred_day: 'Preferred day',
+  prior: 'Prior experience',
+  notes: 'Notes',
+  childName: 'Child name',
+  guardian: 'Guardian',
+  mobile: 'Mobile',
+  interest: 'Interest',
+}
+
+function fmtFieldLabel(key: string): string {
+  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function fmtDateTime(iso: string | null): string {
@@ -202,7 +221,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
 
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const prog = programmes.find(p => p.id === lead.programme_id)
-  const statusC = STATUS_COLOURS[lead.status] ?? { bg: '#6B7280', color: C.WHITE }
+  const statusC = STATUS_COLOURS[lead.status] ?? { background: '#6B7280', color: C.WHITE }
   const leadActivities = activities.filter(a => a.lead_id === lead.id)
 
   function submitNote() {
@@ -339,7 +358,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             <Section title="Family">
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {siblings.map(s => {
-                  const sc = STATUS_COLOURS[s.status] ?? { bg: '#6B7280', color: C.WHITE }
+                  const sc = STATUS_COLOURS[s.status] ?? { background: '#6B7280', color: C.WHITE }
                   return (
                     <span key={s.id} style={{ ...sc, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
                       {s.child_first} · {STATUS_LABELS[s.status]}
@@ -374,7 +393,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
           {extraFields.length > 0 && (
             <Section title="Additional info">
               {extraFields.map(([k, v]) => (
-                <Row key={k} label={k.replace(/_/g, ' ')} value={String(v)} />
+                <Row key={k} label={fmtFieldLabel(k)} value={String(v)} />
               ))}
             </Section>
           )}

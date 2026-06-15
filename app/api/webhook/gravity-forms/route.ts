@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
       lead_id: lead.id,
       user_id: null,
       kind: 'system',
-      body: `Enquiry received via ${(body.source as string | undefined) ?? 'website'}${body.utm_source ? ` (${body.utm_source})` : ''}`,
+      body: `Enquiry received${body.utm_source ? ` via ${body.utm_source}${body.utm_medium ? `/${body.utm_medium}` : ''}` : ` via ${(body.source as string | undefined) ?? 'website'}`}`,
     })
 
     await logAudit({
