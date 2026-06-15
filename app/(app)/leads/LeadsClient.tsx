@@ -58,7 +58,7 @@ function fmtDate(iso: string | null): string {
 
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 }
 
 function waitTime(receivedAt: string): { label: string; color: string } {

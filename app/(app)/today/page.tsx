@@ -77,7 +77,7 @@ export default async function TodayPage() {
   )
   const unverifiedSales = leads.filter(l => l.status === 'won' && l.verified_at == null)
 
-  // Target
+  // Target — load for the user's site (or combined for admin/management)
   let targetData: Target | null = null
   if (siteFilter) {
     const { data } = await supabase
@@ -87,6 +87,22 @@ export default async function TodayPage() {
       .eq('site', siteFilter)
       .single<Target>()
     targetData = data
+  } else {
+    // Admin/management: sum both sites into a synthetic target
+    const { data: allTargets } = await supabase
+      .from('targets')
+      .select('*')
+      .eq('month', firstOfMonth)
+    if (allTargets && allTargets.length > 0) {
+      const combined = allTargets.reduce((acc, t) => ({
+        id: 'combined',
+        site: 'coolaroo' as const,
+        month: firstOfMonth,
+        net_growth_goal: acc.net_growth_goal + t.net_growth_goal,
+        sales_goal: (acc.sales_goal ?? 0) + (t.sales_goal ?? 0),
+      }), { id: 'combined', site: 'coolaroo' as const, month: firstOfMonth, net_growth_goal: 0, sales_goal: 0 })
+      targetData = combined
+    }
   }
 
   // Verified sales this month (for progress)

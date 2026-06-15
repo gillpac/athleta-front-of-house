@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT, SiteSettings } from '@/types'
-import { upsertTarget, updateSiteMembers } from './actions'
+import { upsertTarget, updateSiteMembers, fetchTargetsForMonth } from './actions'
 
 const C = {
   SAND: '#F6F3EE',
@@ -78,15 +78,20 @@ interface TargetFormProps {
   site: SiteT
   existing: Target | undefined
   userId: string
+  monthStart: string
 }
 
-function TargetForm({ site, existing, userId }: TargetFormProps) {
-  const now = new Date()
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+function TargetForm({ site, existing, userId, monthStart }: TargetFormProps) {
   const [netGoal, setNetGoal] = useState(String(existing?.net_growth_goal ?? ''))
   const [salesGoal, setSalesGoal] = useState(String(existing?.sales_goal ?? ''))
   const [saved, setSaved] = useState(false)
   const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    setNetGoal(String(existing?.net_growth_goal ?? ''))
+    setSalesGoal(String(existing?.sales_goal ?? ''))
+    setSaved(false)
+  }, [monthStart, existing?.net_growth_goal, existing?.sales_goal])
 
   function save() {
     startTransition(async () => {
@@ -116,6 +121,61 @@ function TargetForm({ site, existing, userId }: TargetFormProps) {
         </button>
       </div>
     </div>
+  )
+}
+
+function TargetsTab({ userId, siteFilter, currentMonthStart }: { userId: string; siteFilter: string | null; currentMonthStart: string }) {
+  // Build 24-month list: 12 past + current + 11 future
+  const months: string[] = []
+  const now = new Date()
+  for (let i = -12; i <= 11; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`)
+  }
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStart)
+  const [fetchedTargets, setFetchedTargets] = useState<Target[] | null>(null)
+  const [loading, startTransition] = useTransition()
+
+  function loadMonth(month: string) {
+    setSelectedMonth(month)
+    setFetchedTargets(null)
+    startTransition(async () => {
+      const t = await fetchTargetsForMonth(month, siteFilter)
+      setFetchedTargets(t)
+    })
+  }
+
+  const displayTargets = fetchedTargets ?? []
+
+  return (
+    <Section title="Set targets">
+      <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 12 }}>
+        Net growth = verified sales − verified departures. Only verified items count toward targets.
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: C.MUTED, fontWeight: 700, textTransform: 'uppercase' }}>Month</div>
+        <select
+          value={selectedMonth}
+          onChange={e => loadMonth(e.target.value)}
+          style={{ padding: '7px 10px', border: `1px solid ${C.BORDER}`, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          {months.map(m => (
+            <option key={m} value={m}>{monthLabel(m)}{m === currentMonthStart ? ' (current)' : ''}</option>
+          ))}
+        </select>
+        {loading && <span style={{ fontSize: 12, color: C.MUTED }}>Loading…</span>}
+      </div>
+      {(['coolaroo', 'altona_north'] as SiteT[]).filter(s => !siteFilter || siteFilter === s).map(site => (
+        <TargetForm
+          key={`${site}-${selectedMonth}`}
+          site={site}
+          existing={displayTargets.find(t => t.site === site)}
+          userId={userId}
+          monthStart={selectedMonth}
+        />
+      ))}
+    </Section>
   )
 }
 
@@ -386,21 +446,7 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
       )}
 
       {tab === 'targets' && isAdmin && (
-        <>
-          <Section title={`Set targets — ${monthLabel(monthStart)}`}>
-            <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 16 }}>
-              Net growth = verified sales − verified departures. Only verified items count toward targets.
-            </p>
-            {(['coolaroo', 'altona_north'] as SiteT[]).map(site => (
-              <TargetForm
-                key={site}
-                site={site}
-                existing={targets.find(t => t.site === site)}
-                userId={user.id}
-              />
-            ))}
-          </Section>
-        </>
+        <TargetsTab userId={user.id} siteFilter={siteFilter} currentMonthStart={monthStart} />
       )}
 
       {tab === 'debit' && isAdmin && (

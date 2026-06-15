@@ -669,7 +669,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
       <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#2B2521' }}>
-            {new Date(lead.received_at).toLocaleDateString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+            {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
           </div>
           <div style={{ fontSize: 11, fontWeight: 900, color: mins > 240 ? C.red : C.yellow }}>
             {waitLabel(mins)} waiting
