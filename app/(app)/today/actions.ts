@@ -45,6 +45,7 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
   await insertActivity(leadId, userId, 'status', `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${dateStr} ${timeStr}, ${programmeName}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', after: { trialAt, programmeName } })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function markArrived(leadId: string, userId: string) {
@@ -70,6 +71,7 @@ export async function markNoShow(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'status', 'Marked no-show')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'no_show' })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function makeSale(leadId: string, firstClassDate: string, firstClass: string, paymentTaken: boolean, userId: string) {
@@ -88,6 +90,7 @@ export async function makeSale(leadId: string, firstClassDate: string, firstClas
   await insertActivity(leadId, userId, 'status', `SALE 🎉 enrolled — first class ${firstClassAU}, ${firstClass}${paymentTaken ? '. Rego & insurance paid' : ''}. Enter in iClassPro`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'sale', after: { firstClassDate, firstClass, paymentTaken } })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function markDidntEnrol(leadId: string, reason: string, userId: string, followupDate?: string) {
@@ -105,6 +108,7 @@ export async function markDidntEnrol(leadId: string, reason: string, userId: str
   await insertActivity(leadId, userId, 'status', `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupAU})`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'didnt_enrol', after: { reason, followupStr } })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function markLost(leadId: string, reason: string, userId: string) {
@@ -119,6 +123,7 @@ export async function markLost(leadId: string, reason: string, userId: string) {
   await insertActivity(leadId, userId, 'status', `Marked lost — ${reason}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_lost', before, after: { status: 'lost', reason } })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function sendConfirmation(leadId: string, userId: string) {
@@ -168,6 +173,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'comm', 'Confirmation email sent (Jotform included)')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'confirmation_sent' })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function verifySale(leadId: string, userId: string) {
@@ -176,6 +182,7 @@ export async function verifySale(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'verify', 'Admin verified the sale ✓')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'verify_sale' })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 // Alias matching the spec name
@@ -195,6 +202,7 @@ export async function toggleChecklist(itemId: string, userId: string, completed:
 export async function logNote(leadId: string, note: string, userId: string) {
   await insertActivity(leadId, userId, 'note', note)
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function logText(leadId: string, userId: string, message?: string) {
@@ -206,6 +214,7 @@ export async function logText(leadId: string, userId: string, message?: string) 
 export async function logEmail(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'comm', 'Email sent')
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function sendJotform(leadId: string, userId: string) {
@@ -220,6 +229,7 @@ export async function sendJotform(leadId: string, userId: string) {
 export async function resendForm(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'comm', 'Jotform re-sent to parent')
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function markFormReceived(leadId: string, userId: string) {
@@ -227,6 +237,7 @@ export async function markFormReceived(leadId: string, userId: string) {
   await supabase.from('leads').update({ form_received: true }).eq('id', leadId)
   await insertActivity(leadId, userId, 'status', 'Jotform received ✓')
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function updateLeadProfile(

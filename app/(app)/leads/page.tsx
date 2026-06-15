@@ -26,7 +26,7 @@ export default async function LeadsPage() {
   const guardianIds = Array.from(new Set(leads.map(l => l.guardian_id).filter(Boolean)))
   const leadIds = leads.map(l => l.id)
 
-  const [guardiansRes, activitiesRes, programmesRes] = await Promise.all([
+  const [guardiansRes, activitiesRes, programmesRes, usersRes] = await Promise.all([
     guardianIds.length > 0
       ? supabase.from('guardians').select('*').in('id', guardianIds)
       : Promise.resolve({ data: [] }),
@@ -34,7 +34,11 @@ export default async function LeadsPage() {
       ? supabase.from('activities').select('id, lead_id, user_id, kind, body, created_at').in('lead_id', leadIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from('programmes').select('*').eq('active', true).order('sort', { ascending: true }),
+    supabase.from('app_users').select('id, name'),
   ])
+
+  const userNames: Record<string, string> = {}
+  for (const u of usersRes.data ?? []) userNames[(u as { id: string; name: string }).id] = (u as { id: string; name: string }).name
 
   return (
     <LeadsClient
@@ -43,6 +47,7 @@ export default async function LeadsPage() {
       guardians={(guardiansRes.data ?? []) as Guardian[]}
       activities={(activitiesRes.data ?? []) as Activity[]}
       programmes={(programmesRes.data ?? []) as Programme[]}
+      userNames={userNames}
     />
   )
 }
