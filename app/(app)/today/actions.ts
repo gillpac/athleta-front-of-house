@@ -21,7 +21,7 @@ export async function logCallOutcome(leadId: string, outcome: string, userId: st
     ...(followUpAt ? { next_action_at: followUpAt } : {}),
   }).eq('id', leadId)
   const followUpStr = followUpAt
-    ? ` — follow up ${new Date(followUpAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`
+    ? ` — follow up ${new Date(followUpAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })}`
     : ''
   await insertActivity(leadId, userId, 'comm', `Called — ${outcome.toLowerCase()}${followUpStr}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'call_outcome', after: { outcome, followUpAt } })
@@ -40,8 +40,8 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
     next_action_at: trialAt,
     rebooks: wasNoShow ? (lead?.rebooks ?? 0) + 1 : (lead?.rebooks ?? 0),
   }).eq('id', leadId)
-  const dateStr = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-  const timeStr = new Date(trialAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+  const dateStr = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
+  const timeStr = new Date(trialAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
   await insertActivity(leadId, userId, 'status', `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${dateStr} ${timeStr}, ${programmeName}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', after: { trialAt, programmeName } })
   revalidatePath('/today')
@@ -142,7 +142,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
       const guardian = lead.guardian as Record<string, string> | null
       const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
       const trialDate = lead.trial_at
-        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
         : 'TBC'
       const guardianFirstName = guardian?.first_name ?? 'there'
       const sig = lead.site === 'altona_north'

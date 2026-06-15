@@ -42,7 +42,7 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
   }
   if (wasNoShow) updates.rebooks = (before?.rebooks ?? 0) + 1
   await supabase.from('leads').update(updates).eq('id', leadId)
-  const trialDate = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  const trialDate = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
   await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${trialDate}` })
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', before, after: { ...before, ...updates } })
   revalidate()
@@ -107,7 +107,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
       const guardian = lead.guardian as Record<string, string> | null
       const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
       const trialDate = lead.trial_at
-        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
         : 'TBC'
       const guardianFirstName = guardian?.first_name ?? 'there'
       const sig = lead.site === 'altona_north'
