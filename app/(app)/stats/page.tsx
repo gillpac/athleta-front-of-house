@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import StatsClient from './StatsClient'
-import type { AppUser, Lead, Target, BlockoutDay, Cancellation } from '@/types'
+import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteSettings } from '@/types'
 
 export default async function StatsPage() {
   const supabase = await createClient()
@@ -59,6 +59,10 @@ export default async function StatsPage() {
   const { data: blockoutRaw } = await blockoutQ
   const blockoutDays = (blockoutRaw ?? []) as BlockoutDay[]
 
+  // Site settings (member baseline for debit schedule)
+  const { data: siteSettingsRaw } = await supabase.from('site_settings').select('*')
+  const siteSettings = (siteSettingsRaw ?? []) as SiteSettings[]
+
   return (
     <StatsClient
       user={appUser}
@@ -70,6 +74,7 @@ export default async function StatsPage() {
       blockoutDays={blockoutDays}
       monthStart={monthStart}
       todayStr={todayStr}
+      siteSettings={siteSettings}
     />
   )
 }
