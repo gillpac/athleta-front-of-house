@@ -57,7 +57,8 @@ export default async function TodayPage() {
 
   const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
 
-  const newLeads = leads.filter(l => l.status === 'new')
+  const endOfToday = todayStr + 'T23:59:59'
+  const newLeads = leads.filter(l => l.status === 'new' && (!l.next_action_at || l.next_action_at <= endOfToday))
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&
     l.trial_at != null &&

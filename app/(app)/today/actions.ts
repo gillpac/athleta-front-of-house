@@ -10,7 +10,7 @@ async function insertActivity(leadId: string, userId: string, kind: string, body
   await admin.from('activities').insert({ lead_id: leadId, user_id: userId, kind, body })
 }
 
-export async function logCallOutcome(leadId: string, outcome: string, userId: string) {
+export async function logCallOutcome(leadId: string, outcome: string, userId: string, followUpAt?: string) {
   const supabase = await createClient()
   const { data: lead } = await supabase.from('leads').select('attempts, contacted').eq('id', leadId).single()
   const isUnreached = outcome === 'No answer' || outcome === 'Left voicemail'
@@ -18,10 +18,15 @@ export async function logCallOutcome(leadId: string, outcome: string, userId: st
     contacted: true,
     last_outcome: outcome,
     attempts: isUnreached ? (lead?.attempts ?? 0) + 1 : (lead?.attempts ?? 0),
+    ...(followUpAt ? { next_action_at: followUpAt } : {}),
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'comm', `Called — ${outcome.toLowerCase()}`)
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'call_outcome', after: { outcome } })
+  const followUpStr = followUpAt
+    ? ` — follow up ${new Date(followUpAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`
+    : ''
+  await insertActivity(leadId, userId, 'comm', `Called — ${outcome.toLowerCase()}${followUpStr}`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'call_outcome', after: { outcome, followUpAt } })
   revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function bookTrial(leadId: string, trialAt: string, programmeId: string | null, programmeName: string, userId: string) {
@@ -158,8 +163,9 @@ export async function sendConfirmation(leadId: string, userId: string) {
     }
   }
 
-  await supabase.from('leads').update({ confirmation_sent_at: new Date().toISOString() }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'comm', 'Confirmation email sent')
+  const now = new Date().toISOString()
+  await supabase.from('leads').update({ confirmation_sent_at: now, form_sent_at: now }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'comm', 'Confirmation email sent (Jotform included)')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'confirmation_sent' })
   revalidatePath('/today')
 }
@@ -199,6 +205,15 @@ export async function logText(leadId: string, userId: string) {
 export async function logEmail(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'comm', 'Email sent')
   revalidatePath('/today')
+}
+
+export async function sendJotform(leadId: string, userId: string) {
+  const supabase = await createClient()
+  await supabase.from('leads').update({ form_sent_at: new Date().toISOString() }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'comm', 'Jotform sent to parent')
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'form_sent' })
+  revalidatePath('/today')
+  revalidatePath('/leads')
 }
 
 export async function resendForm(leadId: string, userId: string) {

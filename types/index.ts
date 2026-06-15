@@ -58,6 +58,7 @@ export interface Lead {
   trial_at: string | null     // ISO timestamptz
   confirmation_sent_at: string | null
   form_received: boolean
+  form_sent_at: string | null   // when Jotform was first sent
   next_action_at: string | null
   first_class_date: string | null
   first_class: string | null

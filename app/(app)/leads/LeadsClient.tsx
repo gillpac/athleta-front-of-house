@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import type { AppUser, Lead, Guardian, Activity, Programme } from '@/types'
 import {
   logCallOutcome, bookTrial, markNoShow, makeSale,
-  markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead,
+  markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead, createLead,
 } from './actions'
 import { logText, logEmail } from '../today/actions'
 
@@ -393,7 +393,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
           {extraFields.length > 0 && (
             <Section title="Additional info">
               {extraFields.map(([k, v]) => (
-                <Row key={k} label={fmtFieldLabel(k)} value={String(v)} />
+                <Row key={k} label={fmtFieldLabel(k)} value={String(v)} longText={String(v).length > 60} />
               ))}
             </Section>
           )}
@@ -514,11 +514,117 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Row({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+function Row({ label, value, valueColor, longText }: { label: string; value: string; valueColor?: string; longText?: boolean }) {
+  if (longText) {
+    return (
+      <div style={{ fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.BORDER}` }}>
+        <div style={{ color: C.MUTED, marginBottom: 3 }}>{label}</div>
+        <div style={{ color: valueColor ?? C.INK, fontWeight: 500 }}>{value}</div>
+      </div>
+    )
+  }
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.BORDER}` }}>
       <span style={{ color: C.MUTED }}>{label}</span>
-      <span style={{ color: valueColor ?? C.INK, fontWeight: 500 }}>{value}</span>
+      <span style={{ color: valueColor ?? C.INK, fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
+    </div>
+  )
+}
+
+const SOURCES = ['walk-in', 'phone enquiry', 'website', 'facebook', 'instagram', 'referral', 'other']
+const RELATIONSHIPS = ['Mother', 'Father', 'Carer', 'Guardian']
+
+function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes: Programme[]; onClose: () => void }) {
+  const [pending, startTransition] = useTransition()
+  const isAdmin = user.role === 'admin' || user.role === 'management'
+  const [f, setF] = useState({
+    childFirst: '', childLast: '', dob: '', gender: '', programmeId: '', site: user.site ?? 'coolaroo',
+    source: 'walk-in', referrerName: '', notes: '',
+    guardianFirst: '', guardianLast: '', phone: '', email: '', relationship: 'Mother',
+  })
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF(p => ({ ...p, [k]: e.target.value }))
+
+  function submit() {
+    if (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) return
+    startTransition(async () => {
+      await createLead({ ...f, dob: f.dob || null, gender: f.gender || null, programmeId: f.programmeId || null, referrerName: f.referrerName || null, notes: f.notes || null }, user.id)
+      onClose()
+    })
+  }
+
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: `1px solid ${C.BORDER}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }
+  const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4, marginTop: 14 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 16px' }}>
+      <div style={{ background: C.WHITE, width: '100%', maxWidth: 480, padding: 24, border: `1px solid ${C.BORDER}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>Add lead</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Child</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>First name *</label><input value={f.childFirst} onChange={set('childFirst')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Last name</label><input value={f.childLast} onChange={set('childLast')} style={inp} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>Date of birth</label><input type="date" value={f.dob} onChange={set('dob')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Gender</label>
+            <select value={f.gender} onChange={set('gender')} style={inp}>
+              <option value="">—</option>
+              <option>Female</option><option>Male</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <label style={label}>Programme interest</label>
+        <select value={f.programmeId} onChange={set('programmeId')} style={inp}>
+          <option value="">—</option>
+          {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 18, marginBottom: 8 }}>Guardian</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>First name *</label><input value={f.guardianFirst} onChange={set('guardianFirst')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Last name</label><input value={f.guardianLast} onChange={set('guardianLast')} style={inp} /></div>
+        </div>
+        <label style={label}>Phone *</label><input value={f.phone} onChange={set('phone')} style={inp} placeholder="04xx xxx xxx" />
+        <label style={label}>Email</label><input type="email" value={f.email} onChange={set('email')} style={inp} />
+        <label style={label}>Relationship</label>
+        <select value={f.relationship} onChange={set('relationship')} style={inp}>
+          {RELATIONSHIPS.map(r => <option key={r}>{r}</option>)}
+        </select>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 18, marginBottom: 8 }}>Enquiry</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>Source</label>
+            <select value={f.source} onChange={set('source')} style={inp}>
+              {SOURCES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          {isAdmin && (
+            <div style={{ flex: 1 }}><label style={label}>Site</label>
+              <select value={f.site} onChange={set('site')} style={inp}>
+                <option value="coolaroo">Coolaroo</option>
+                <option value="altona_north">Altona North</option>
+              </select>
+            </div>
+          )}
+        </div>
+        {f.source === 'referral' && (
+          <><label style={label}>Referred by</label><input value={f.referrerName} onChange={set('referrerName')} style={inp} /></>
+        )}
+        <label style={label}>Notes</label>
+        <textarea value={f.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes…" style={{ ...inp, resize: 'vertical' }} />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+          <button onClick={submit} disabled={!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || pending}
+            style={{ flex: 2, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, opacity: (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) ? 0.5 : 1 }}>
+            {pending ? 'Saving…' : 'Add lead'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -561,6 +667,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   const guardianMap = useMemo(() => {
     const m: Record<string, Guardian> = {}
@@ -613,6 +720,10 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           </button>
         ))}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+        <button onClick={() => setShowAddModal(true)}
+          style={{ padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.ORANGE, color: C.WHITE, border: 'none' }}>
+          + Add lead
+        </button>
       </div>
       {isAdmin && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -694,6 +805,14 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           programmes={programmes}
           user={user}
           onClose={() => setSelectedId(null)}
+        />
+      )}
+
+      {showAddModal && (
+        <AddLeadModal
+          user={user}
+          programmes={programmes}
+          onClose={() => setShowAddModal(false)}
         />
       )}
     </div>

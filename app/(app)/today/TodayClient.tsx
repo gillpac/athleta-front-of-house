@@ -19,6 +19,7 @@ import {
   logEmail,
   resendForm,
   markFormReceived,
+  sendJotform,
 } from './actions'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -255,22 +256,57 @@ function WhoCell({ lead, onOpen, onOpenParent }: {
 
 // ─── CallMenu ─────────────────────────────────────────────────────────────────
 const CALL_OUTCOMES = ['No answer', 'Left voicemail', 'Spoke — call back later', 'Spoke — booking now']
+const NEEDS_FOLLOWUP = new Set(['No answer', 'Left voicemail', 'Spoke — call back later'])
 
-function CallMenu({ onPick, onClose }: { onPick: (o: string) => void; onClose: () => void }) {
+function defaultFollowUp(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(9, 0, 0, 0)
+  return d.toISOString().slice(0, 16)
+}
+
+function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string) => void; onClose: () => void }) {
+  const [step, setStep] = useState<string | null>(null)
+  const [followUp, setFollowUp] = useState(defaultFollowUp)
+
+  if (step) {
+    return (
+      <div style={{
+        position: 'absolute', top: '105%', left: 0,
+        background: '#fff', border: `1px solid ${C.line}`,
+        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 240, padding: 12,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
+        <input
+          type="datetime-local"
+          value={followUp}
+          onChange={e => setFollowUp(e.target.value)}
+          style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Cancel</button>
+          <button onClick={() => onPick(step, followUp ? new Date(followUp).toISOString() : undefined)}
+            style={{ flex: 2, padding: '7px', border: 'none', background: C.ink, color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            Log &amp; set reminder
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       style={{
-        position: 'absolute', top: '105%', right: 0,
+        position: 'absolute', top: '105%', left: 0,
         background: '#fff', border: `1px solid ${C.line}`,
-        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 200,
+        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 220,
       }}
-      onMouseLeave={onClose}
     >
       <div style={{ ...colHead, padding: '7px 10px', borderBottom: `1px solid ${C.lineSoft}` }}>I called — what happened?</div>
       {CALL_OUTCOMES.map(o => (
         <button
           key={o}
-          onClick={() => onPick(o)}
+          onClick={() => NEEDS_FOLLOWUP.has(o) ? setStep(o) : onPick(o)}
           style={{
             display: 'block', width: '100%', textAlign: 'left',
             fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
@@ -495,10 +531,10 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   const guardian = lead.guardians
   const h4s: React.CSSProperties = { margin: '18px 0 8px', fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.2, color: C.muted }
 
-  function handleCall(outcome: string) {
+  function handleCall(outcome: string, followUpAt?: string) {
     setCallOpen(false)
     startTransition(async () => {
-      await logCallOutcome(lead.id, outcome, userId)
+      await logCallOutcome(lead.id, outcome, userId, followUpAt)
     })
   }
 
@@ -559,17 +595,20 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             {callOpen && <CallMenu onPick={handleCall} onClose={() => setCallOpen(false)} />}
           </div>
 
-          {/* form + programme */}
+          {/* Jotform status */}
           <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {lead.form_received
               ? <Tag tone="green">Jotform ✓</Tag>
-              : (
-                <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
-                  <Tag tone="yellow">Jotform pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet>
-                </span>
-              )}
+              : lead.form_sent_at
+                ? (
+                  <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
+                    <Tag tone="yellow">Jotform pending</Tag>
+                    <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet>
+                    <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet>
+                  </span>
+                )
+                : <Quiet onClick={() => startTransition(() => sendJotform(lead.id, userId))}>Send Jotform</Quiet>
+            }
             {lead.status === 'won' && (
               lead.verified_at ? <Tag tone="green" solid>sale ✓</Tag> : <Tag tone="yellow">sale — pending admin</Tag>
             )}
@@ -741,7 +780,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
   const mins = waitMins(lead.received_at)
   const programmes: Programme[] = [] // will be injected from parent via context — kept simple here
 
-  function handleCallOutcome(outcome: string) {
+  function handleCallOutcome(outcome: string, followUpAt?: string) {
     setCallFor(false)
     if (outcome === 'Spoke — booking now') {
       startTransition(async () => {
@@ -750,7 +789,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked }: {
       setBookingOpen(true)
       return
     }
-    startTransition(() => logCallOutcome(lead.id, outcome, userId))
+    startTransition(() => logCallOutcome(lead.id, outcome, userId, followUpAt))
   }
 
   return (
@@ -857,13 +896,15 @@ function TodayRow({ lead, userId, activities, onOpen, onOpenParent }: {
           <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
             {lead.form_received
               ? <Tag tone="green">Jotform ✓</Tag>
-              : (
-                <>
-                  <Tag tone="grey">Jotform pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
-                </>
-              )}
+              : lead.form_sent_at
+                ? (
+                  <>
+                    <Tag tone="yellow">Jotform pending</Tag>
+                    <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
+                    <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
+                  </>
+                )
+                : null}
           </div>
         </div>
         {/* Step 1: arrived */}
@@ -972,12 +1013,15 @@ function TomorrowRow({ lead, userId, onOpen, onOpenParent }: {
         <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
           {lead.form_received
             ? <Tag tone="green">Jotform ✓</Tag>
-            : (
-              <>
-                <Tag tone="grey">Jotform pending</Tag>
-                <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
-              </>
-            )}
+            : lead.form_sent_at
+              ? (
+                <>
+                  <Tag tone="yellow">Jotform pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
+                </>
+              )
+              : null}
         </div>
       </div>
       <div>

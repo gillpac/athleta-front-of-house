@@ -167,3 +167,72 @@ export async function archiveLead(leadId: string, userId: string) {
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'archive_lead', before, after: { ...before, ...updates } })
   revalidate()
 }
+
+export async function createLead(data: {
+  childFirst: string
+  childLast: string
+  dob: string | null
+  gender: string | null
+  programmeId: string | null
+  site: string
+  source: string
+  referrerName: string | null
+  notes: string | null
+  guardianFirst: string
+  guardianLast: string
+  phone: string
+  email: string | null
+  relationship: string | null
+}, userId: string) {
+  const admin = createAdminClient()
+
+  // Dedup guardian by phone
+  let guardianId: string | null = null
+  if (data.phone) {
+    const norm = data.phone.replace(/\D/g, '').replace(/^0/, '+61').replace(/^61/, '+61')
+    const { data: existing } = await admin.from('guardians').select('id').eq('phone', norm).is('archived_at', null).single()
+    if (existing) guardianId = existing.id
+    const gPayload = { first_name: data.guardianFirst.trim() || 'Unknown', last_name: data.guardianLast.trim(), phone: norm, email: data.email || null, preferred_contact: null }
+    if (guardianId) {
+      await admin.from('guardians').update(gPayload).eq('id', guardianId)
+    } else {
+      const { data: g } = await admin.from('guardians').insert(gPayload).select('id').single()
+      guardianId = g?.id ?? null
+    }
+  }
+  if (!guardianId) return { error: 'Could not create guardian' }
+
+  const leadPayload = {
+    guardian_id: guardianId,
+    relationship: data.relationship || null,
+    child_first: data.childFirst.trim(),
+    child_last: data.childLast.trim() || data.childFirst.trim(),
+    dob: data.dob || null,
+    gender: data.gender || null,
+    site: data.site,
+    programme_id: data.programmeId || null,
+    source: data.source || 'walk-in',
+    referrer_name: data.referrerName || null,
+    status: 'new',
+    contacted: false,
+    attempts: 0,
+    rebooks: 0,
+    payment_taken: false,
+    form_received: false,
+    form_sent_at: null,
+    next_action_at: new Date().toISOString(),
+    created_by: userId,
+    enquiry_raw: null,
+  }
+
+  const { data: lead, error } = await admin.from('leads').insert(leadPayload).select('id').single()
+  if (error || !lead) return { error: error?.message ?? 'Failed to create lead' }
+
+  await admin.from('activities').insert({ lead_id: lead.id, user_id: userId, kind: 'system', body: `Lead created manually by staff (${data.source || 'walk-in'})` })
+  if (data.notes?.trim()) {
+    await admin.from('activities').insert({ lead_id: lead.id, user_id: userId, kind: 'note', body: data.notes.trim() })
+  }
+  await logAudit({ entity: 'leads', entity_id: lead.id, user_id: userId, action: 'manual_create', after: leadPayload })
+  revalidate()
+  return { leadId: lead.id }
+}
