@@ -233,9 +233,10 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
   }
 
   function doArchive() {
-    if (!confirm('Archive this lead? This cannot be undone easily.')) return
+    const reason = window.prompt('Reason for archiving (e.g. Spam / test enquiry, Duplicate record, Entered in error, Parent requested removal, Other):')
+    if (!reason?.trim()) return
     startTransition(async () => {
-      await archiveLead(lead.id, user.id)
+      await archiveLead(lead.id, user.id, reason.trim())
       onClose()
     })
   }

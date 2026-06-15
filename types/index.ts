@@ -30,6 +30,7 @@ export interface Guardian {
   phone: string
   email: string | null
   preferred_contact: string | null
+  secondary_contact_note: string | null
   created_at: string
   archived_at: string | null
   archived_by: string | null

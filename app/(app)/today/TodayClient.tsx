@@ -20,6 +20,8 @@ import {
   resendForm,
   markFormReceived,
   sendJotform,
+  updateLeadProfile,
+  archiveLeadWithReason,
 } from './actions'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -254,66 +256,78 @@ function tomorrowDateStr(): string {
 
 function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string) => void; onClose: () => void }) {
   const [step, setStep] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null) // ISO string of chosen follow-up
   const [customDate, setCustomDate] = useState(tomorrowDateStr())
+  const [showCustom, setShowCustom] = useState(false)
+
+  function tileStyle(active: boolean, accent = C.ink) {
+    return {
+      fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+      padding: '8px 6px', border: `1px solid ${active ? accent : C.line}`,
+      background: active ? accent : '#fff', color: active ? '#fff' : C.muted,
+    } as React.CSSProperties
+  }
 
   if (step) {
+    const confirm = () => {
+      if (!selected) return
+      onPick(step!, selected)
+    }
     return (
       <div style={{
         position: 'absolute', top: '105%', left: 0,
         background: '#fff', border: `1px solid ${C.line}`,
-        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 260, padding: 12,
+        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 280, padding: 12,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-          {([['1 hour', 'h1'], ['2 hours', 'h2']] as [string, string][]).map(([label, key]) => (
-            <button key={key} onClick={() => {
-              const d = new Date()
-              d.setHours(d.getHours() + (key === 'h1' ? 1 : 2), 0, 0, 0)
-              onPick(step, d.toISOString())
-            }} style={{ fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer', padding: '8px 6px', background: C.orange, color: '#fff', border: `1px solid ${C.orangeDark}` }}>
-              {label}
-            </button>
-          ))}
+          {([['1 hour', 'h1'], ['2 hours', 'h2']] as [string, string][]).map(([label, key]) => {
+            const iso = (() => { const d = new Date(); d.setHours(d.getHours() + (key === 'h1' ? 1 : 2), 0, 0, 0); return d.toISOString() })()
+            return (
+              <button key={key} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso, C.orange)}>
+                {label}
+              </button>
+            )
+          })}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
           {([
             ['Tomorrow', 1],
             ['Two days', 2],
             ['Three days', 3],
             ['Next week', 7],
-          ] as [string, number][]).map(([label, days]) => (
-            <button
-              key={label}
-              onClick={() => onPick(step, followUpDate(days))}
-              style={{
-                fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: 'pointer',
-                padding: '8px 6px',
-                background: C.ink, color: '#fff',
-                border: `1px solid ${C.ink}`,
+          ] as [string, number][]).map(([label, days]) => {
+            const iso = followUpDate(days)
+            return (
+              <button key={label} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso)}>
+                {label}
+              </button>
+            )
+          })}
+          <button onClick={() => { setShowCustom(v => !v); if (!showCustom) setSelected(null) }} style={tileStyle(showCustom)}>
+            Custom…
+          </button>
+        </div>
+        {showCustom && (
+          <div style={{ marginBottom: 8 }}>
+            <input
+              type="date"
+              value={customDate}
+              min={tomorrowDateStr()}
+              onChange={e => {
+                setCustomDate(e.target.value)
+                if (e.target.value) setSelected(new Date(e.target.value + 'T09:00:00').toISOString())
               }}
-            >{label}</button>
-          ))}
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Custom date</div>
-          <input
-            type="date"
-            value={customDate}
-            min={tomorrowDateStr()}
-            onChange={e => setCustomDate(e.target.value)}
-            style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, boxSizing: 'border-box' as const }}
-          />
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+              style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, boxSizing: 'border-box' as const }}
+            />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Cancel</button>
           <button
-            onClick={() => {
-              if (customDate) {
-                const d = new Date(customDate + 'T09:00:00')
-                onPick(step, d.toISOString())
-              }
-            }}
-            style={{ flex: 2, padding: '7px', border: 'none', background: C.ink, color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            onClick={confirm}
+            disabled={!selected}
+            style={{ flex: 2, padding: '7px', border: 'none', background: selected ? C.ink : C.greyBg, color: selected ? '#fff' : C.muted, cursor: selected ? 'pointer' : 'default', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             Log &amp; set reminder
           </button>
         </div>
@@ -535,6 +549,133 @@ function EnrolModal({ lead, onClose, onConfirm }: {
   )
 }
 
+// ─── EditProfileModal ─────────────────────────────────────────────────────────
+function EditProfileModal({ lead, programmes, onClose, onArchive, onSave }: {
+  lead: Lead & { guardians: Guardian }
+  programmes: Programme[]
+  onClose: () => void
+  onArchive: () => void
+  onSave: (
+    leadFields: { child_first: string; child_last: string; dob: string | null; gender: string | null; programme_id: string | null },
+    guardianFields: { first_name: string; last_name: string; phone: string; email: string | null; preferred_contact: string | null; secondary_contact_note: string | null }
+  ) => void
+}) {
+  const g = lead.guardians
+  const [childFirst, setChildFirst] = useState(lead.child_first)
+  const [childLast, setChildLast] = useState(lead.child_last)
+  const [dob, setDob] = useState(lead.dob ?? '')
+  const [gender, setGender] = useState(lead.gender ?? '')
+  const [progId, setProgId] = useState(lead.programme_id ?? '')
+  const [firstName, setFirstName] = useState(g.first_name)
+  const [lastName, setLastName] = useState(g.last_name)
+  const [phone, setPhone] = useState(g.phone)
+  const [email, setEmail] = useState(g.email ?? '')
+  const [prefContact, setPrefContact] = useState(g.preferred_contact ?? '')
+  const [secondContact, setSecondContact] = useState(g.secondary_contact_note ?? '')
+
+  function handleSave() {
+    onSave(
+      { child_first: childFirst.trim(), child_last: childLast.trim(), dob: dob || null, gender: gender || null, programme_id: progId || null },
+      { first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim(), email: email.trim() || null, preferred_contact: prefContact || null, secondary_contact_note: secondContact.trim() || null }
+    )
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 140 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 6, padding: '22px 24px', width: 440, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${C.orange}` }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Edit profile — {lead.child_first} {lead.child_last}</h3>
+          <Quiet onClick={onClose}>✕</Quiet>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Child</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={lbl}>First name<input value={childFirst} onChange={e => setChildFirst(e.target.value)} style={inp} /></label>
+          <label style={lbl}>Last name<input value={childLast} onChange={e => setChildLast(e.target.value)} style={inp} /></label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={lbl}>Date of birth<input type="date" value={dob} onChange={e => setDob(e.target.value)} style={inp} /></label>
+          <label style={lbl}>Gender
+            <select value={gender} onChange={e => setGender(e.target.value)} style={inp}>
+              <option value="">—</option>
+              <option>Male</option>
+              <option>Female</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label style={{ ...lbl, marginBottom: 14 }}>Programme
+          <select value={progId} onChange={e => setProgId(e.target.value)} style={inp}>
+            <option value="">— unassigned —</option>
+            {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+
+        <div style={{ fontSize: 11, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Guardian</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <label style={lbl}>First name<input value={firstName} onChange={e => setFirstName(e.target.value)} style={inp} /></label>
+          <label style={lbl}>Last name<input value={lastName} onChange={e => setLastName(e.target.value)} style={inp} /></label>
+        </div>
+        <label style={lbl}>Phone<input value={phone} onChange={e => setPhone(e.target.value)} style={inp} /></label>
+        <label style={lbl}>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inp} /></label>
+        <label style={lbl}>Preferred contact
+          <select value={prefContact} onChange={e => setPrefContact(e.target.value)} style={inp}>
+            <option value="">—</option>
+            <option>Phone call</option>
+            <option>Text / SMS</option>
+            <option>Email</option>
+          </select>
+        </label>
+        <label style={{ ...lbl, marginBottom: 16 }}>Second guardian / contact
+          <textarea value={secondContact} onChange={e => setSecondContact(e.target.value)} placeholder="e.g. Dad — John Smith, 0412 345 678" rows={2}
+            style={{ ...inp, resize: 'vertical' as const }} />
+        </label>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={onArchive} style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '6px 10px', background: 'none', border: `1px solid ${C.line}`, color: C.red }}>Archive lead…</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Quiet onClick={onClose}>Cancel</Quiet>
+            <Next onClick={handleSave}>Save changes</Next>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ArchiveReasonModal ───────────────────────────────────────────────────────
+const ARCHIVE_REASONS = ['Spam / test enquiry', 'Duplicate record', 'Entered in error', 'Parent requested removal', 'Other']
+function ArchiveReasonModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [reason, setReason] = useState(ARCHIVE_REASONS[0])
+  const [other, setOther] = useState('')
+  const finalReason = reason === 'Other' ? (other.trim() ? `Other — ${other.trim()}` : '') : reason
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(23,19,14,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 6, padding: '20px 22px', width: 360, maxWidth: '90vw', borderTop: `3px solid ${C.red}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 900, color: C.red }}>Archive this lead?</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: C.muted }}>This will remove the lead from all active views. You must select a reason.</p>
+        <label style={lbl}>Reason
+          <select value={reason} onChange={e => setReason(e.target.value)} style={inp}>
+            {ARCHIVE_REASONS.map(r => <option key={r}>{r}</option>)}
+          </select>
+        </label>
+        {reason === 'Other' && (
+          <label style={{ ...lbl, marginTop: 8 }}>Details
+            <input value={other} onChange={e => setOther(e.target.value)} placeholder="Brief reason…" style={inp} />
+          </label>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <Quiet onClick={onClose}>Cancel</Quiet>
+          <button onClick={() => finalReason && onConfirm(finalReason)} disabled={!finalReason}
+            style={{ fontFamily: FONT, fontWeight: 800, fontSize: 12, cursor: finalReason ? 'pointer' : 'default', padding: '7px 14px', background: finalReason ? C.red : C.greyBg, color: finalReason ? '#fff' : C.muted, border: 'none', borderRadius: 4 }}>
+            Archive lead
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Profile slide-in ─────────────────────────────────────────────────────────
 const PROFILE_KNOWN_FIELDS = new Set([
   'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
@@ -569,7 +710,7 @@ function InfoRow({ label, value, color, longText }: { label: string; value: stri
   )
 }
 
-function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead, activities }: {
+function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead, activities, userNames }: {
   lead: Lead & { guardians: Guardian }
   allLeads: (Lead & { guardians: Guardian })[]
   onClose: () => void
@@ -577,13 +718,16 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   programmes: Programme[]
   onOpenParent: () => void
   onSwitchLead: (id: string) => void
-  activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
+  activities: Array<{ lead_id: string; user_id: string | null; kind: string; body: string; created_at: string }>
+  userNames: Record<string, string>
 }) {
   const [note, setNote] = useState('')
   const [callOpen, setCallOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [bookingOpen, setBookingOpen] = useState(false)
   const [enrolOpen, setEnrolOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
 
   const siblings = allLeads.filter(l => l.guardians.id === lead.guardians.id && l.id !== lead.id)
   const bookable = lead.status === 'new' || lead.status === 'noshow' || lead.status === 'nurture'
@@ -605,7 +749,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 40 }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 120 }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(23,19,14,.4)' }} onClick={onClose} />
         <div style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '94vw',
@@ -645,7 +789,10 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
                   </div>
                 )}
               </div>
-              <Quiet onClick={onClose}>✕</Quiet>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <Quiet onClick={() => setEditOpen(true)}>Edit</Quiet>
+                <Quiet onClick={onClose}>✕</Quiet>
+              </div>
             </div>
 
             {/* Action buttons */}
@@ -686,6 +833,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
               <InfoRow label="Phone" value={guardian.phone} />
               {guardian.email && <InfoRow label="Email" value={guardian.email} />}
               {guardian.preferred_contact && <InfoRow label="Preferred contact" value={guardian.preferred_contact} />}
+              {guardian.secondary_contact_note && <InfoRow label="Second contact" value={guardian.secondary_contact_note} longText={guardian.secondary_contact_note.length > 50} />}
             </ProfileSection>
 
             {lead.trial_at && (
@@ -728,16 +876,26 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             </ProfileSection>
 
             <ProfileSection title="Timeline">
+              {/* First entry: inquiry received */}
+              <div style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {formatDate(lead.received_at)} · {lead.source ?? 'unknown source'}
+                </div>
+                <div style={{ fontSize: 12.5, color: C.ink }}>Enquiry received</div>
+              </div>
               {leadActivities.length === 0
-                ? <div style={{ fontSize: 13, color: C.muted }}>No activity yet.</div>
-                : leadActivities.map((a, i) => (
-                  <div key={i} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>
-                      {new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                ? <div style={{ fontSize: 13, color: C.muted }}>No further activity yet.</div>
+                : leadActivities.map((a, i) => {
+                  const who = a.user_id ? (userNames[a.user_id] ?? 'Staff') : 'System'
+                  return (
+                    <div key={i} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: C.muted }}>
+                        {new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {who}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: C.ink }}>{a.body}</div>
                     </div>
-                    <div style={{ fontSize: 12.5 }}>{a.body}</div>
-                  </div>
-                ))
+                  )
+                })
               }
             </ProfileSection>
           </div>
@@ -765,6 +923,28 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
           onConfirm={({ date, slot, payTaken }) => {
             setEnrolOpen(false)
             startTransition(() => makeSale(lead.id, date, slot, payTaken, userId))
+          }}
+        />
+      )}
+      {editOpen && (
+        <EditProfileModal
+          lead={lead}
+          programmes={programmes}
+          onClose={() => setEditOpen(false)}
+          onArchive={() => { setEditOpen(false); setArchiveOpen(true) }}
+          onSave={(lf, gf) => {
+            setEditOpen(false)
+            startTransition(() => updateLeadProfile(lead.id, lead.guardian_id, userId, lf, gf))
+          }}
+        />
+      )}
+      {archiveOpen && (
+        <ArchiveReasonModal
+          onClose={() => setArchiveOpen(false)}
+          onConfirm={(reason) => {
+            setArchiveOpen(false)
+            onClose()
+            startTransition(() => archiveLeadWithReason(lead.id, userId, reason))
           }}
         />
       )}
@@ -1232,7 +1412,8 @@ interface TodayClientProps {
   blockoutDays: BlockoutDay[]
   checklistItems: ChecklistItem[]
   completions: ChecklistCompletion[]
-  todayActivities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
+  todayActivities: Array<{ lead_id: string; user_id: string | null; kind: string; body: string; created_at: string }>
+  userNames: Record<string, string>
   programmes: Programme[]
   todayStr: string
 }
@@ -1251,6 +1432,7 @@ export default function TodayClient({
   checklistItems,
   completions,
   todayActivities,
+  userNames,
   programmes,
   todayStr,
 }: TodayClientProps) {
@@ -1586,6 +1768,7 @@ export default function TodayClient({
           }}
           onSwitchLead={(id) => setOpenLeadId(id)}
           activities={todayActivities}
+          userNames={userNames}
         />
       )}
 

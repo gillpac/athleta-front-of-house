@@ -158,13 +158,28 @@ export async function addNote(leadId: string, userId: string, body: string) {
   revalidate()
 }
 
-export async function archiveLead(leadId: string, userId: string) {
+export async function archiveLead(leadId: string, userId: string, reason: string) {
   const supabase = await createClient()
   const before = await getLead(supabase, leadId)
   const updates = { archived_at: new Date().toISOString(), archived_by: userId }
   await supabase.from('leads').update(updates).eq('id', leadId)
-  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: 'Lead archived' })
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'archive_lead', before, after: { ...before, ...updates } })
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Archived — ${reason}` })
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'archive_lead', before, after: { ...before, ...updates, reason } })
+  revalidate()
+}
+
+export async function updateLeadProfile(
+  leadId: string,
+  guardianId: string,
+  userId: string,
+  leadFields: { child_first: string; child_last: string; dob: string | null; gender: string | null; programme_id: string | null },
+  guardianFields: { first_name: string; last_name: string; phone: string; email: string | null; preferred_contact: string | null; secondary_contact_note: string | null },
+) {
+  const supabase = await createClient()
+  await supabase.from('leads').update(leadFields).eq('id', leadId)
+  await supabase.from('guardians').update(guardianFields).eq('id', guardianId)
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'note', body: 'Profile updated' })
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'update_profile', after: { ...leadFields, ...guardianFields } })
   revalidate()
 }
 

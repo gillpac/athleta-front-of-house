@@ -227,3 +227,29 @@ export async function markFormReceived(leadId: string, userId: string) {
   await insertActivity(leadId, userId, 'status', 'Jotform received ✓')
   revalidatePath('/today')
 }
+
+export async function updateLeadProfile(
+  leadId: string,
+  guardianId: string,
+  userId: string,
+  leadFields: { child_first: string; child_last: string; dob: string | null; gender: string | null; programme_id: string | null },
+  guardianFields: { first_name: string; last_name: string; phone: string; email: string | null; preferred_contact: string | null; secondary_contact_note: string | null },
+) {
+  const supabase = await createClient()
+  await supabase.from('leads').update(leadFields).eq('id', leadId)
+  await supabase.from('guardians').update(guardianFields).eq('id', guardianId)
+  await insertActivity(leadId, userId, 'note', 'Profile updated')
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'update_profile', after: { ...leadFields, ...guardianFields } })
+  revalidatePath('/today')
+  revalidatePath('/leads')
+}
+
+export async function archiveLeadWithReason(leadId: string, userId: string, reason: string) {
+  const supabase = await createClient()
+  const { data: before } = await supabase.from('leads').select('*').eq('id', leadId).single()
+  await supabase.from('leads').update({ archived_at: new Date().toISOString(), archived_by: userId }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'status', `Archived — ${reason}`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'archive', before, after: { reason } })
+  revalidatePath('/today')
+  revalidatePath('/leads')
+}
