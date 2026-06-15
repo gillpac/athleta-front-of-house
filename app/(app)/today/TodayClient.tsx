@@ -440,7 +440,7 @@ function EnrolModal({ lead, onClose, onConfirm }: {
 }
 
 // ─── Profile slide-in ─────────────────────────────────────────────────────────
-function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead }: {
+function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, onSwitchLead, activities }: {
   lead: Lead & { guardians: Guardian }
   allLeads: (Lead & { guardians: Guardian })[]
   onClose: () => void
@@ -448,6 +448,7 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
   programmes: Programme[]
   onOpenParent: () => void
   onSwitchLead: (id: string) => void
+  activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
 }) {
   const [note, setNote] = useState('')
   const [callOpen, setCallOpen] = useState(false)
@@ -528,12 +529,12 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
           {/* form + programme */}
           <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {lead.form_received
-              ? <Tag tone="green">form ✓</Tag>
+              ? <Tag tone="green">Jotform ✓</Tag>
               : (
                 <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', background: C.yellowBg, border: '1px solid #E5D49A', borderRadius: 4, padding: '3px 6px' }}>
-                  <Tag tone="yellow">form pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend form</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got form ✓</Quiet>
+                  <Tag tone="yellow">Jotform pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>Resend Jotform</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>Got Jotform ✓</Quiet>
                 </span>
               )}
             {lead.status === 'won' && (
@@ -564,6 +565,23 @@ function Profile({ lead, allLeads, onClose, userId, programmes, onOpenParent, on
             }}>Save</Next>
           </div>
           {pending && <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginTop: 4 }}>Saving…</div>}
+
+          {/* timeline */}
+          {(() => {
+            const acts = activities.filter(a => a.lead_id === lead.id)
+            if (!acts.length) return null
+            return (
+              <>
+                <h4 style={{ margin: '18px 0 8px', fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.2, color: C.muted }}>Timeline</h4>
+                {acts.map((a, i) => (
+                  <div key={i} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: 12.5 }}>{a.body}</div>
+                  </div>
+                ))}
+              </>
+            )
+          })()}
         </div>
       </div>
 
@@ -767,12 +785,12 @@ function TodayRow({ lead, userId, activities, onOpen, onOpenParent }: {
           <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
           <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
             {lead.form_received
-              ? <Tag tone="green">form ✓</Tag>
+              ? <Tag tone="green">Jotform ✓</Tag>
               : (
                 <>
-                  <Tag tone="grey">form pending</Tag>
-                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
-                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got form</Quiet>
+                  <Tag tone="grey">Jotform pending</Tag>
+                  <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
+                  <Quiet onClick={() => startTransition(() => markFormReceived(lead.id, userId))}>✓ got Jotform</Quiet>
                 </>
               )}
           </div>
@@ -882,11 +900,11 @@ function TomorrowRow({ lead, userId, onOpen, onOpenParent }: {
         <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
         <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
           {lead.form_received
-            ? <Tag tone="green">form ✓</Tag>
+            ? <Tag tone="green">Jotform ✓</Tag>
             : (
               <>
-                <Tag tone="grey">form pending</Tag>
-                <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend</Quiet>
+                <Tag tone="grey">Jotform pending</Tag>
+                <Quiet onClick={() => startTransition(() => resendForm(lead.id, userId))}>resend Jotform</Quiet>
               </>
             )}
         </div>
@@ -1227,6 +1245,7 @@ export default function TodayClient({
           onClose={() => setOpenLeadId(null)}
           userId={appUser.id}
           programmes={programmes}
+          activities={todayActivities}
           onOpenParent={() => {
             setOpenParentGuardianId(openLead.guardians.id)
             setOpenLeadId(null)

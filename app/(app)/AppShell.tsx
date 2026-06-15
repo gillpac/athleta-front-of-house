@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { AppUser } from '@/types'
 
@@ -20,24 +20,37 @@ const TABS: Tab[] = [
   { label: 'Today', href: '/today', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Leads', href: '/leads', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Cancellations', href: '/cancellations', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
-  { label: 'Stats', href: '/stats', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
+  { label: 'Reports', href: '/stats', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Settings', href: '/settings', roles: ['admin', 'management'] },
 ]
 
 export default function AppShell({
   user,
+  preferredSite,
   children,
 }: {
   user: AppUser
+  preferredSite: string
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(user.role))
+  const isAdmin = user.role === 'admin' || user.role === 'management'
 
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
     window.location.href = '/login'
+  }
+
+  async function handleSiteChange(site: string) {
+    await fetch('/api/set-site', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site }),
+    })
+    router.refresh()
   }
 
   return (
@@ -65,7 +78,21 @@ export default function AppShell({
             FRONT OF HOUSE
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isAdmin && (
+            <select
+              value={preferredSite}
+              onChange={e => handleSiteChange(e.target.value)}
+              style={{
+                fontSize: 12, background: 'transparent', color: '#fff',
+                border: '1px solid #3D3428', padding: '4px 8px', cursor: 'pointer',
+              }}
+            >
+              <option value="all" style={{ background: '#17130E' }}>All sites</option>
+              <option value="coolaroo" style={{ background: '#17130E' }}>Coolaroo</option>
+              <option value="altona_north" style={{ background: '#17130E' }}>Altona North</option>
+            </select>
+          )}
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
             <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>

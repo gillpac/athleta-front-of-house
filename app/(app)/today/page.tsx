@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
 import TodayClient from './TodayClient'
@@ -39,8 +40,11 @@ export default async function TodayPage() {
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Site filter
-  const siteFilter = appUser.site
+  // Site filter — admin/management can switch via cookie
+  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
+  const cookieStore = await cookies()
+  const preferredSite = isAdmin ? (cookieStore.get('preferred_site')?.value ?? 'all') : null
+  const siteFilter = appUser.site ?? (isAdmin && preferredSite !== 'all' ? preferredSite : null)
 
   // Build leads query
   let leadsQuery = supabase

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import CancellationsClient from './CancellationsClient'
 import type { AppUser, Cancellation } from '@/types'
@@ -12,7 +13,9 @@ export default async function CancellationsPage() {
   if (!appUser) redirect('/login?error=no_profile')
 
   const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
-  const siteFilter = isAdmin ? null : appUser.site
+  const cookieStore = await cookies()
+  const preferredSite = isAdmin ? (cookieStore.get('preferred_site')?.value ?? 'all') : null
+  const siteFilter = appUser.site ?? (isAdmin && preferredSite !== 'all' ? preferredSite : null)
 
   let q = supabase
     .from('cancellations')

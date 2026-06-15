@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT, SiteSettings } from '@/types'
 import { upsertTarget, updateSiteMembers, fetchTargetsForMonth } from './actions'
 
@@ -287,6 +288,14 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
   const isManagement = user.role === 'management'
   const siteFilter = isAdmin ? null : user.site
   const [tab, setTab] = useState<'overview' | 'sources' | 'targets' | 'debit'>('overview')
+  const router = useRouter()
+
+  function navigateMonth(delta: number) {
+    const d = new Date(monthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() + delta)
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    router.push(`?month=${next}`)
+  }
 
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
 
@@ -340,6 +349,19 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
 
   return (
     <div style={{ maxWidth: 800 }}>
+      {/* Month navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <button onClick={() => navigateMonth(-1)}
+          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+          ←
+        </button>
+        <span style={{ fontSize: 15, fontWeight: 700, minWidth: 160, textAlign: 'center' }}>{monthLabel(monthStart)}</span>
+        <button onClick={() => navigateMonth(1)}
+          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+          →
+        </button>
+      </div>
+
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.BORDER}`, marginBottom: 24 }}>
         {(['overview', 'sources', ...(isAdmin ? ['targets', 'debit'] : [])] as string[]).map(t => (

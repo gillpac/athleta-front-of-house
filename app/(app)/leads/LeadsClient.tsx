@@ -6,6 +6,7 @@ import {
   logCallOutcome, bookTrial, markNoShow, makeSale,
   markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead,
 } from './actions'
+import { logText, logEmail } from '../today/actions'
 
 const C = {
   SAND: '#F6F3EE',
@@ -275,8 +276,8 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
 
       <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={onClose} />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, maxWidth: '100vw',
-        background: C.WHITE, borderLeft: `1px solid ${C.BORDER}`, zIndex: 201,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, maxWidth: '100vw',
+        background: C.WHITE, borderLeft: `3px solid ${C.ORANGE}`, zIndex: 201,
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
       }}>
         {/* Header */}
@@ -299,7 +300,7 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             <Row label="Gender" value={lead.gender ?? '—'} />
             <Row label="Source" value={lead.source} />
             {lead.referrer_name && <Row label="Referred by" value={lead.referrer_name} />}
-            <Row label="Form received" value={lead.form_received ? '✓ Yes' : '✗ No'} valueColor={lead.form_received ? C.GREEN : C.RED} />
+            <Row label="Jotform received" value={lead.form_received ? '✓ Yes' : '✗ No'} valueColor={lead.form_received ? C.GREEN : C.RED} />
           </Section>
 
           {/* Guardian */}
@@ -392,6 +393,14 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
               style={{ padding: '9px 12px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13 }}>
               📞 Call ▾
             </button>
+            <button onClick={() => startTransition(() => logText(lead.id, user.id))}
+              style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13, marginLeft: 4 }}>
+              💬 Log text
+            </button>
+            <button onClick={() => startTransition(() => logEmail(lead.id, user.id))}
+              style={{ padding: '9px 12px', background: C.WHITE, color: C.INK, border: `1px solid ${C.BORDER}`, cursor: 'pointer', fontSize: 13, marginLeft: 4 }}>
+              ✉ Log email
+            </button>
             {showCallMenu && (
               <div style={{ position: 'absolute', bottom: '100%', left: 0, background: C.WHITE, border: `1px solid ${C.BORDER}`, zIndex: 10, minWidth: 200 }}>
                 {CALL_OUTCOMES.map(o => (
@@ -475,12 +484,35 @@ function Row({ label, value, valueColor }: { label: string; value: string; value
 
 const STATUS_FILTERS = ['all', 'new', 'booked', 'noshow', 'won', 'nurture'] as const
 const STATUS_FILTER_LABELS: Record<string, string> = { all: 'All', new: 'New', booked: 'Booked', noshow: 'No-show', won: 'Enrolled', nurture: 'Nurture' }
+const DATE_FILTERS = ['all', 'today', 'this_week', 'last_week', 'this_month', 'last_month'] as const
+const DATE_FILTER_LABELS: Record<string, string> = { all: 'All dates', today: 'Today', this_week: 'This week', last_week: 'Last week', this_month: 'This month', last_month: 'Last month' }
+
+function isInDateRange(isoDate: string, filter: string): boolean {
+  if (filter === 'all') return true
+  const d = new Date(isoDate)
+  const now = new Date()
+  const startOfDay = (dt: Date) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
+  const today = startOfDay(now)
+  if (filter === 'today') return d >= today && d < new Date(today.getTime() + 86400000)
+  const day = now.getDay()
+  const monday = new Date(today); monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1))
+  if (filter === 'this_week') return d >= monday
+  const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7)
+  const thisMondayDate = monday
+  if (filter === 'last_week') return d >= lastMonday && d < thisMondayDate
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  if (filter === 'this_month') return d >= firstOfMonth
+  const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  if (filter === 'last_month') return d >= firstOfLastMonth && d < firstOfMonth
+  return true
+}
 
 export default function LeadsClient({ user, leads, guardians, activities, programmes }: Props) {
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [siteFilter, setSiteFilter] = useState<string>('all')
+  const [dateFilter, setDateFilter] = useState<string>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const guardianMap = useMemo(() => {
@@ -494,6 +526,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
     return leads.filter(l => {
       if (statusFilter !== 'all' && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
+      if (!isInDateRange(l.received_at, dateFilter)) return false
       if (!q) return true
       const g = guardianMap[l.guardian_id]
       const childName = `${l.child_first} ${l.child_last}`.toLowerCase()
@@ -535,7 +568,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
         <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
       </div>
       {isAdmin && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
             <button key={s} onClick={() => setSiteFilter(s)}
               style={{
@@ -549,6 +582,13 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           ))}
         </div>
       )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: C.MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>Date received:</label>
+        <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+          style={{ padding: '5px 10px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer' }}>
+          {DATE_FILTERS.map(f => <option key={f} value={f}>{DATE_FILTER_LABELS[f]}</option>)}
+        </select>
+      </div>
 
       {/* Lead rows */}
       {filtered.length === 0 && (
