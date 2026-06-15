@@ -231,8 +231,8 @@ function WhoCell({ lead, onOpen, onOpenParent, showSite }: {
             borderBottom: `1px dotted ${C.line}`,
           }}
         >{guardian.first_name} {guardian.last_name}</button>
-        {' '}· {guardian.phone}
       </div>
+      <div style={{ fontSize: 11.5, color: C.ink, fontWeight: 600, marginTop: 1 }}>{guardian.phone}</div>
     </div>
   )
 }
@@ -644,7 +644,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: showSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.55 : 1, background: scheduled ? '#FAFAF9' : 'transparent' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: showSite ? '92px 1.3fr 150px 96px auto' : '92px 1.3fr 150px auto', gap: 10, alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.5 : 1, background: scheduled ? '#FAFAF9' : 'transparent', borderLeft: scheduled ? `3px solid transparent` : `3px solid ${C.orange}` }}>
         <div>
           {scheduled && lead.next_action_at ? (
             <>
@@ -1170,35 +1170,22 @@ export default function TodayClient({
 
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
 
+  // Half-gauge SVG component (inline)
+  const gaugeColor = pct >= 100 ? C.green : C.yellow
+  const gaugeStroke = pct >= 100 ? C.greenDark : '#7A5C07'
+  const gR = 52, gCx = 70, gCy = 66, gSw = 14
+  const clampPct = Math.min(100, Math.max(0, pct))
+  const gAngle = Math.PI * (1 - clampPct / 100)
+  const gPx = gCx + gR * Math.cos(gAngle)
+  const gPy = gCy - gR * Math.sin(gAngle)
+  const gLargeArc = clampPct > 50 ? 1 : 0
+
   return (
     <div style={{ fontFamily: FONT }}>
-      {/* ── Target bar ── */}
-      <div style={{
-        background: C.card, border: `1px solid ${C.line}`,
-        borderLeft: `4px solid ${C.orange}`, borderRadius: 6,
-        padding: '14px 18px', marginBottom: 22,
-        display: 'flex', gap: 22, alignItems: 'center', flexWrap: 'wrap',
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+
+        {/* ── LEFT COLUMN ── */}
         <div>
-          <div style={{ fontSize: 10.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.2, color: C.muted }}>
-            {siteName} · {month} target
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
-            +{actual} <span style={{ fontSize: 14, color: C.muted, fontWeight: 800 }}>of +{goal} net members</span>
-          </div>
-        </div>
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <div style={{ height: 10, background: C.sand, borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ width: `${pct}%`, height: '100%', background: C.orange }} />
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: C.orange }}>{toGo} to go</div>
-          <div style={{ fontSize: 11.5, fontWeight: 400, color: C.muted }}>
-            {opDays} operating days left (Mon–Sat){opDays > 0 ? ` · ≈${(toGo / opDays).toFixed(1)} per day` : ''}
-          </div>
-        </div>
-      </div>
 
       {/* ── New leads panel ── */}
       <Panel
@@ -1452,6 +1439,84 @@ export default function TodayClient({
           )
         })}
       </Panel>
+
+        </div>{/* end left column */}
+
+        {/* ── RIGHT RAIL ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Target widget */}
+          <section style={{ background: C.card, borderRadius: 12, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{month} target</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginTop: 1 }}>{siteName}</div>
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: pct >= 100 ? C.green : C.yellow }}>
+                {pct >= 100 ? '✓ On target' : `${toGo} to go`}
+              </div>
+            </div>
+            {/* Half gauge */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 0' }}>
+              <svg width={140} height={82} viewBox="0 0 140 82">
+                {/* Track */}
+                <path
+                  d={`M ${gCx - gR},${gCy} A ${gR},${gR} 0 0,1 ${gCx + gR},${gCy}`}
+                  fill="none" stroke={C.sand} strokeWidth={gSw} strokeLinecap="round"
+                />
+                {/* Fill */}
+                {clampPct > 0 && (
+                  <path
+                    d={`M ${gCx - gR},${gCy} A ${gR},${gR} 0 ${gLargeArc},1 ${gPx},${gPy}`}
+                    fill="none" stroke={gaugeColor} strokeWidth={gSw} strokeLinecap="round"
+                  />
+                )}
+                <text x={gCx} y={gCy - 6} textAnchor="middle" fontSize="24" fontWeight="900" fill={C.ink}>{pct}%</text>
+                <text x={gCx} y={gCy + 10} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={C.muted}>of target</text>
+              </svg>
+            </div>
+            {/* Ledger */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${C.lineSoft}`, margin: '4px 0 0' }}>
+              {([
+                ['Net growth', `+${actual}`, actual >= goal ? C.green : C.ink],
+                ['Target', `+${goal}`, C.muted],
+                ['Ops days left', String(opDays), C.muted],
+              ] as [string, string, string][]).map(([label, val, clr]) => (
+                <div key={label} style={{ padding: '10px 12px', borderRight: `1px solid ${C.lineSoft}`, textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: clr }}>{val}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {opDays > 0 && toGo > 0 && (
+              <div style={{ padding: '8px 14px', borderTop: `1px solid ${C.lineSoft}`, fontSize: 11, fontWeight: 600, color: C.muted }}>
+                ≈{(toGo / opDays).toFixed(1)} sales per day needed
+              </div>
+            )}
+          </section>
+
+          {/* Today at a glance */}
+          <section style={{ background: C.card, borderRadius: 12, boxShadow: '0 1px 2px rgba(23,19,14,0.04), 0 2px 8px rgba(23,19,14,0.05)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
+              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.ink }}>Today at a glance</h3>
+            </div>
+            {([
+              ['New leads', newLeads.length, newLeads.length > 0 ? 'red' : 'green'],
+              ['Trials today', todayTrials.length, 'grey'],
+              ['No-shows', noShows.length, noShows.length > 0 ? 'red' : 'green'],
+              ['Unverified sales', unverifiedSales.length, unverifiedSales.length > 0 ? 'yellow' : 'green'],
+              ['Checklist', `${doneCount}/${checklistItems.length}`, doneCount === checklistItems.length && checklistItems.length > 0 ? 'green' : 'grey'],
+            ] as [string, number | string, TagTone][]).map(([label, val, tone]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 18px', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{label}</span>
+                <Tag tone={tone}>{val}</Tag>
+              </div>
+            ))}
+          </section>
+
+        </div>{/* end right rail */}
+
+      </div>{/* end two-col grid */}
 
       {/* ── Profile slide-in ── */}
       {openLead && (

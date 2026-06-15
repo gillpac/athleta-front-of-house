@@ -45,8 +45,9 @@ export default function AppShell({
       {/* Header */}
       <div
         style={{
-          backgroundColor: '#17130E',
-          color: '#FFFFFF',
+          backgroundColor: '#FFFFFF',
+          borderTop: '3px solid #E26839',
+          borderBottom: '1px solid #D9CFC2',
           height: 52,
           position: 'sticky',
           top: 0,
@@ -55,16 +56,16 @@ export default function AppShell({
       >
        <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.3px' }}>
+          <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.5px', color: '#17130E' }}>
             ATHLETA
           </span>
-          <span style={{ fontSize: 12, color: '#84776A', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: 11, color: '#84776A', letterSpacing: '0.08em', fontWeight: 600 }}>
             FRONT OF HOUSE
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#17130E' }}>{user.name}</div>
             <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>
               {user.site ? (SITE_LABELS[user.site] ?? user.site) : 'All sites'}
             </div>
@@ -73,7 +74,7 @@ export default function AppShell({
             onClick={handleLogout}
             style={{
               fontSize: 11, fontWeight: 600, color: '#84776A', background: 'none',
-              border: '1px solid #3D3428', padding: '4px 10px', cursor: 'pointer',
+              border: '1px solid #D9CFC2', padding: '4px 10px', cursor: 'pointer',
               whiteSpace: 'nowrap',
             }}
           >
