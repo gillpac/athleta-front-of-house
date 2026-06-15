@@ -9,6 +9,20 @@ export function runtimeEnv(key: string): string | undefined {
   return process.env[key]
 }
 
+/**
+ * Normalise an Australian mobile to local 04xxxxxxxx format for Jotform prefill.
+ * A leading + (e.g. +61452158244) breaks the Jotform phone field, so strip the
+ * country code back to a leading 0.
+ */
+export function formatAuPhone(phone?: string): string {
+  if (!phone) return ''
+  const digits = phone.replace(/[^\d]/g, '')
+  if (digits.startsWith('61')) return '0' + digits.slice(2)
+  if (digits.startsWith('0')) return digits
+  if (digits.length === 9) return '0' + digits
+  return digits
+}
+
 export function buildJotformUrl(site: string, lead: {
   child_first: string
   child_last: string
@@ -24,7 +38,7 @@ export function buildJotformUrl(site: string, lead: {
   params.set('childFull[first]', lead.child_first)
   params.set('childFull[last]', lead.child_last)
   params.set('mediaampamp[0]', 'true')
-  params.set('ParentMobilePhone', guardian?.phone ?? '')
+  params.set('ParentMobilePhone', formatAuPhone(guardian?.phone))
   return `${base}?${params.toString()}`
 }
 
