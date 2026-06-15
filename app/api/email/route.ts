@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
+import { runtimeEnv } from '@/lib/email-helpers'
 
 /**
  * Outbound email via Zapier → Gmail draft.
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
     ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
     : 'TBC'
 
-  const zapierUrl = process.env.ZAPIER_EMAIL_WEBHOOK_URL
+  const zapierUrl = runtimeEnv('ZAPIER_EMAIL_WEBHOOK_URL')
   if (!zapierUrl) {
     return NextResponse.json({ error: 'ZAPIER_EMAIL_WEBHOOK_URL not configured' }, { status: 500 })
   }

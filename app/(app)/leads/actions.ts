@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import { buildAddress, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
+import { buildAddress, buildJotformUrl, postToZapier, runtimeEnv } from '@/lib/email-helpers'
 
 function revalidate() {
   revalidatePath('/leads')
@@ -129,7 +129,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = { confirmation_sent_at: now }
-  const jotformConfigured = !!(lead?.site === 'altona_north' ? process.env.JOTFORM_URL_ALTONA_NORTH : process.env.JOTFORM_URL_COOLAROO)
+  const jotformConfigured = !!(lead?.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
   if (jotformConfigured) updates.form_sent_at = now
   await supabase.from('leads').update(updates).eq('id', leadId)
   const activityMsg = jotformConfigured

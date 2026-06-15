@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import { buildAddress, buildJotformUrl, postToZapier } from '@/lib/email-helpers'
+import { buildAddress, buildJotformUrl, postToZapier, runtimeEnv } from '@/lib/email-helpers'
 
 async function insertActivity(leadId: string, userId: string, kind: string, body: string) {
   const admin = createAdminClient()
@@ -129,23 +129,17 @@ export async function markLost(leadId: string, reason: string, userId: string) {
 
 
 export async function sendConfirmation(leadId: string, userId: string) {
-  console.log('[sendConfirmation] start', { leadId, userId })
-  console.log('[sendConfirmation] env keys present:', Object.keys(process.env).filter(k => /ZAPIER|JOTFORM/i.test(k)))
-  console.log('[sendConfirmation] zapier url set:', !!process.env.ZAPIER_EMAIL_WEBHOOK_URL)
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const { data: lead, error: leadError } = await admin
+  const { data: lead } = await admin
     .from('leads')
     .select('*, guardian:guardians(*)')
     .eq('id', leadId)
     .single()
 
-  console.log('[sendConfirmation] lead fetch', { found: !!lead, error: leadError?.message })
-
   if (lead) {
     const guardian = lead.guardian as Record<string, string> | null
-    console.log('[sendConfirmation] guardian email', guardian?.email, 'zapier url set', !!process.env.ZAPIER_EMAIL_WEBHOOK_URL)
     const trialDateStr = lead.trial_at
       ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
       : 'TBC'
@@ -170,7 +164,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
 
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = { confirmation_sent_at: now }
-  const jotformConfigured = !!(lead?.site === 'altona_north' ? process.env.JOTFORM_URL_ALTONA_NORTH : process.env.JOTFORM_URL_COOLAROO)
+  const jotformConfigured = !!(lead?.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
   if (jotformConfigured) updates.form_sent_at = now
   await supabase.from('leads').update(updates).eq('id', leadId)
   const activityMsg = jotformConfigured

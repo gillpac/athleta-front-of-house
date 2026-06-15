@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
+import { runtimeEnv } from '@/lib/email-helpers'
 
 /**
  * Weekly management summary email — runs Monday 8am AEST (Sunday 22:00 UTC).
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const zapierUrl = process.env.ZAPIER_EMAIL_WEBHOOK_URL
+  const zapierUrl = runtimeEnv('ZAPIER_EMAIL_WEBHOOK_URL')
   if (!zapierUrl) {
     return NextResponse.json({ skipped: true, reason: 'ZAPIER_EMAIL_WEBHOOK_URL not configured' })
   }

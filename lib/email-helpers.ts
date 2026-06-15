@@ -1,10 +1,21 @@
+/**
+ * Read an env var at runtime via dynamic lookup.
+ * Vercel "Sensitive" env vars are not available at build time, so a static
+ * `process.env.FOO` reference can get inlined as empty during the build.
+ * A dynamic `process.env[key]` lookup is never inlined and always reads the
+ * live runtime value.
+ */
+export function runtimeEnv(key: string): string | undefined {
+  return process.env[key]
+}
+
 export function buildJotformUrl(site: string, lead: {
   child_first: string
   child_last: string
 }, guardian: { first_name?: string; last_name?: string; email?: string; phone?: string } | null) {
   const base = site === 'altona_north'
-    ? process.env.JOTFORM_URL_ALTONA_NORTH
-    : process.env.JOTFORM_URL_COOLAROO
+    ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH')
+    : runtimeEnv('JOTFORM_URL_COOLAROO')
   if (!base) return null
   const params = new URLSearchParams()
   params.set('ParentfullName[first]', guardian?.first_name ?? '')
@@ -24,8 +35,9 @@ export function buildAddress(site: string) {
 }
 
 export async function postToZapier(payload: Record<string, unknown>) {
-  if (!process.env.ZAPIER_EMAIL_WEBHOOK_URL) return
-  await fetch(process.env.ZAPIER_EMAIL_WEBHOOK_URL, {
+  const url = runtimeEnv('ZAPIER_EMAIL_WEBHOOK_URL')
+  if (!url) return
+  await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
