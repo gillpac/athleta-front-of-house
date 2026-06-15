@@ -704,14 +704,6 @@ export function ProfilePanel({
               <InfoRow label="Jotform" value={lead.form_received ? '✓ Received' : lead.form_sent_at ? '⧗ Sent — awaiting return' : '— not yet sent'} color={lead.form_received ? C.green : lead.form_sent_at ? C.yellow : C.muted} />
             </ProfileSection>
 
-            <ProfileSection title="Enquiry">
-              <InfoRow label="Received" value={formatDate(lead.received_at)} />
-              {utmSource && <InfoRow label="Source" value={utmSource} />}
-              {utmMedium && <InfoRow label="Medium" value={utmMedium} />}
-              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
-              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
-            </ProfileSection>
-
             <ProfileSection title="Guardian">
               <InfoRow label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
               <InfoRow label="Phone" value={guardian.phone} />
@@ -750,6 +742,14 @@ export function ProfilePanel({
                 ))}
               </ProfileSection>
             )}
+
+            <ProfileSection title="Enquiry">
+              <InfoRow label="Received" value={fmtDateTime(lead.received_at)} />
+              {utmSource && <InfoRow label="Source" value={utmSource} />}
+              {utmMedium && <InfoRow label="Medium" value={utmMedium} />}
+              {utmCampaign && <InfoRow label="Campaign" value={utmCampaign} />}
+              {lead.referrer_name && <InfoRow label="Referred by" value={lead.referrer_name} />}
+            </ProfileSection>
 
             <ProfileSection title="Add note">
               <div style={{ display: 'flex', gap: 6 }}>
