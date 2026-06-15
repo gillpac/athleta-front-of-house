@@ -612,7 +612,7 @@ function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
 }
 
 // ─── New lead row ─────────────────────────────────────────────────────────────
-function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, showSite }: {
+function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, showSite, scheduled }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   onOpen: () => void
@@ -620,6 +620,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
   onBooked: () => void
   programmes: Programme[]
   showSite?: boolean
+  scheduled?: boolean
 }) {
   const [callFor, setCallFor] = useState(false)
   const [bookingOpen, setBookingOpen] = useState(false)
@@ -641,14 +642,23 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : scheduled ? 0.6 : 1, background: scheduled ? '#FCFAF7' : 'transparent' }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: C.ink }}>
-            {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: mins > 240 ? C.red : C.yellow }}>
-            {waitLabel(mins)} waiting
-          </div>
+          {scheduled && lead.next_action_at ? (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Call back</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{formatTime(lead.next_action_at)}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 500, color: C.ink }}>
+                {new Date(lead.received_at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: mins > 240 ? C.red : C.yellow }}>
+                {waitLabel(mins)} waiting
+              </div>
+            </>
+          )}
         </div>
         <div>
           <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
@@ -1112,6 +1122,13 @@ export default function TodayClient({
     }),
   }
 
+  // New leads: never-contacted/due first; snoozed (called with a future reminder) sink to the bottom
+  const newCallNow = newLeads.filter(l => !l.contacted || !l.next_action_at)
+  const newScheduled = newLeads
+    .filter(l => l.contacted && l.next_action_at)
+    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
+  const newLeadsSorted = [...newCallNow, ...newScheduled]
+
   // All leads for family lookups
   const allLeads = [...newLeads, ...bookedLeads, ...noShows, ...unverifiedSales, ...upcomingNewLeads]
   // Deduplicate by id
@@ -1196,10 +1213,11 @@ export default function TodayClient({
         {newLeads.length === 0 && (
           <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No new leads — great work!</div>
         )}
-        {newLeads.map(l => (
+        {newLeadsSorted.map(l => (
           <NewRow
             key={l.id}
             lead={l}
+            scheduled={l.contacted && !!l.next_action_at}
             userId={appUser.id}
             programmes={programmes}
             showSite={isMultiSite}

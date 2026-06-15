@@ -47,16 +47,13 @@ export default function AppShell({
         style={{
           backgroundColor: '#17130E',
           color: '#FFFFFF',
-          padding: '0 24px',
           height: 52,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
           position: 'sticky',
           top: 0,
           zIndex: 100,
         }}
       >
+       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.3px' }}>
             ATHLETA
@@ -83,6 +80,7 @@ export default function AppShell({
             Log out
           </button>
         </div>
+       </div>
       </div>
 
       {/* Tab row */}
@@ -90,11 +88,9 @@ export default function AppShell({
         style={{
           backgroundColor: '#FFFFFF',
           borderBottom: '1px solid #D9CFC2',
-          padding: '0 24px',
-          display: 'flex',
-          gap: 0,
         }}
       >
+       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px', display: 'flex', gap: 0 }}>
         {visibleTabs.map((tab) => {
           const isActive = pathname === tab.href || pathname.startsWith(tab.href + '/')
           return (
@@ -117,10 +113,11 @@ export default function AppShell({
             </Link>
           )
         })}
+       </div>
       </div>
 
       {/* Page content */}
-      <main style={{ padding: 24 }}>{children}</main>
+      <main style={{ maxWidth: 1040, margin: '0 auto', padding: '24px 24px 64px' }}>{children}</main>
     </div>
   )
 }
