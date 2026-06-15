@@ -78,7 +78,9 @@ export async function makeSale(leadId: string, firstClassDate: string, firstClas
     first_class: firstClass,
     next_action_at: null,
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'status', `SALE 🎉 enrolled — first class ${firstClassDate}, ${firstClass}${paymentTaken ? '. Rego & insurance paid' : ''}. Enter in iClassPro`)
+  const [yr, mo, dy] = firstClassDate.split('-')
+  const firstClassAU = `${dy}/${mo}/${yr}`
+  await insertActivity(leadId, userId, 'status', `SALE 🎉 enrolled — first class ${firstClassAU}, ${firstClass}${paymentTaken ? '. Rego & insurance paid' : ''}. Enter in iClassPro`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'sale', after: { firstClassDate, firstClass, paymentTaken } })
   revalidatePath('/today')
 }
@@ -88,13 +90,14 @@ export async function markDidntEnrol(leadId: string, reason: string, userId: str
   const followup = followupDate ? new Date(followupDate + 'T12:00:00') : new Date()
   if (!followupDate) followup.setDate(followup.getDate() + 7)
   const followupStr = followup.toISOString().split('T')[0]
+  const followupAU = `${String(followup.getDate()).padStart(2, '0')}/${String(followup.getMonth() + 1).padStart(2, '0')}/${followup.getFullYear()}`
   await supabase.from('leads').update({
     status: 'nurture',
     lost_reason: reason,
     nurture_followup_at: followupStr,
     next_action_at: followup.toISOString(),
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'status', `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupStr})`)
+  await insertActivity(leadId, userId, 'status', `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupAU})`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'didnt_enrol', after: { reason, followupStr } })
   revalidatePath('/today')
 }

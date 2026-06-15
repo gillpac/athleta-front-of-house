@@ -74,9 +74,10 @@ export async function markDidntEnrol(leadId: string, reason: string, userId: str
   const followup = followupDate ? new Date(followupDate + 'T12:00:00') : new Date()
   if (!followupDate) followup.setDate(followup.getDate() + 7)
   const followupStr = followup.toISOString().split('T')[0]
+  const followupAU = `${String(followup.getDate()).padStart(2, '0')}/${String(followup.getMonth() + 1).padStart(2, '0')}/${followup.getFullYear()}`
   const updates = { status: 'nurture', lost_reason: reason, nurture_followup_at: followupStr, next_action_at: followup.toISOString(), prev_state: { status: before?.status, trial_at: before?.trial_at } }
   await supabase.from('leads').update(updates).eq('id', leadId)
-  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupStr})` })
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Didn't enrol — ${reason}. Moved to nurture (follow up ${followupAU})` })
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_didnt_enrol', before, after: { ...before, ...updates } })
   revalidate()
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
-import type { SiteT } from '@/types'
+import type { SiteT, Target } from '@/types'
 
 export async function upsertTarget(
   site: SiteT,
@@ -18,6 +18,14 @@ export async function upsertTarget(
   await supabase.from('targets').upsert({ site, month, net_growth_goal: netGrowthGoal, sales_goal: salesGoal }, { onConflict: 'site,month' })
   await logAudit({ entity: 'targets', entity_id: `${site}-${month}`, user_id: userId, action: 'upsert_target', before, after: { site, month, netGrowthGoal, salesGoal } })
   revalidatePath('/stats')
+}
+
+export async function fetchTargetsForMonth(month: string, siteFilter: string | null): Promise<Target[]> {
+  const supabase = await createClient()
+  let q = supabase.from('targets').select('*').eq('month', month)
+  if (siteFilter) q = q.eq('site', siteFilter)
+  const { data } = await q
+  return (data ?? []) as Target[]
 }
 
 export async function updateSiteMembers(site: SiteT, currentMembers: number, userId: string) {
