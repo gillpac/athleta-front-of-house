@@ -59,23 +59,18 @@ export default async function TodayPage() {
 
   const endOfToday = todayStr + 'T23:59:59'
   const newLeads = leads.filter(l => l.status === 'new' && (!l.next_action_at || l.next_action_at <= endOfToday))
+  const upcomingNewLeads = leads
+    .filter(l => l.status === 'new' && l.next_action_at && l.next_action_at > endOfToday)
+    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&
     l.trial_at != null &&
     l.trial_at.startsWith(todayStr)
   )
+  const bookedLeads = leads
+    .filter(l => l.status === 'booked' && l.trial_at != null)
+    .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
   const noShows = leads.filter(l => l.status === 'noshow')
-  const tomorrowTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.startsWith(tomorrowStr)
-  )
-  const thisWeekTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.slice(0, 10) >= dayAfterTomorrowStr &&
-    l.trial_at.slice(0, 10) <= endOfWeekStr
-  )
   const unverifiedSales = leads.filter(l => l.status === 'won' && l.verified_at == null)
 
   // Target — load for the user's site (or combined for admin/management)
@@ -159,12 +154,15 @@ export default async function TodayPage() {
 
   // Activities for today's trials (to determine arrived state)
   const trialLeadIds = todayTrials.map(l => l.id)
+  // Also include all booked leads so timeline is available in profile
+  const allBookedIds = bookedLeads.map(l => l.id)
   let activitiesData: Array<{ lead_id: string; kind: string; body: string; created_at: string }> = []
-  if (trialLeadIds.length > 0) {
+  const activityLeadIds = Array.from(new Set([...trialLeadIds, ...allBookedIds]))
+  if (activityLeadIds.length > 0) {
     const { data: acts } = await supabase
       .from('activities')
       .select('lead_id, kind, body, created_at')
-      .in('lead_id', trialLeadIds)
+      .in('lead_id', activityLeadIds)
       .order('created_at', { ascending: false })
     activitiesData = acts ?? []
   }
@@ -180,10 +178,10 @@ export default async function TodayPage() {
     <TodayClient
       appUser={appUser}
       newLeads={newLeads}
+      upcomingNewLeads={upcomingNewLeads}
       todayTrials={todayTrials}
+      bookedLeads={bookedLeads}
       noShows={noShows}
-      tomorrowTrials={tomorrowTrials}
-      thisWeekTrials={thisWeekTrials}
       unverifiedSales={unverifiedSales}
       target={targetData}
       verifiedCount={verifiedCount}

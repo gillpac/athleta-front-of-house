@@ -258,18 +258,32 @@ function WhoCell({ lead, onOpen, onOpenParent }: {
 const CALL_OUTCOMES = ['No answer', 'Left voicemail', 'Spoke — call back later', 'Spoke — booking now']
 const NEEDS_FOLLOWUP = new Set(['No answer', 'Left voicemail', 'Spoke — call back later'])
 
-function defaultFollowUp(): string {
+function dateAt9am(daysAhead: number): string {
   const d = new Date()
-  d.setDate(d.getDate() + 1)
+  d.setDate(d.getDate() + daysAhead)
   d.setHours(9, 0, 0, 0)
-  return d.toISOString().slice(0, 16)
+  return d.toISOString()
+}
+
+function dateStrFromNow(daysAhead: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + daysAhead)
+  return d.toISOString().slice(0, 10)
 }
 
 function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string) => void; onClose: () => void }) {
   const [step, setStep] = useState<string | null>(null)
-  const [followUp, setFollowUp] = useState(defaultFollowUp)
+  const [customDate, setCustomDate] = useState(dateStrFromNow(1))
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(1) // 1 = tomorrow
+
+  function getIso(): string {
+    if (selectedPreset !== null) return dateAt9am(selectedPreset)
+    const d = new Date(customDate + 'T09:00:00')
+    return d.toISOString()
+  }
 
   if (step) {
+    const PRESETS: [string, number][] = [['Tomorrow', 1], ['Two days', 2], ['Three days', 3], ['Next week', 7]]
     return (
       <div style={{
         position: 'absolute', top: '105%', left: 0,
@@ -277,15 +291,24 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
         borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 240, padding: 12,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
+          {PRESETS.map(([label, days]) => (
+            <button key={days} onClick={() => { setSelectedPreset(days); setCustomDate(dateStrFromNow(days)) }}
+              style={{ padding: '7px 6px', fontSize: 12, fontWeight: 700, fontFamily: FONT, cursor: 'pointer', border: `1px solid ${selectedPreset === days ? C.orange : C.line}`, background: selectedPreset === days ? C.orange : '#fff', color: selectedPreset === days ? '#fff' : C.ink }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <input
-          type="datetime-local"
-          value={followUp}
-          onChange={e => setFollowUp(e.target.value)}
+          type="date"
+          value={customDate}
+          min={dateStrFromNow(1)}
+          onChange={e => { setCustomDate(e.target.value); setSelectedPreset(null) }}
           style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.line}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
         />
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Cancel</button>
-          <button onClick={() => onPick(step, followUp ? new Date(followUp).toISOString() : undefined)}
+          <button onClick={() => onPick(step, getIso())}
             style={{ flex: 2, padding: '7px', border: 'none', background: C.ink, color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             Log &amp; set reminder
           </button>
@@ -1033,6 +1056,72 @@ function TomorrowRow({ lead, userId, onOpen, onOpenParent }: {
   )
 }
 
+// ─── Booked row (non-today tabs) ─────────────────────────────────────────────
+function BookedRow({ lead, userId, onOpen, onOpenParent }: {
+  lead: Lead & { guardians: Guardian }
+  userId: string
+  onOpen: () => void
+  onOpenParent: () => void
+}) {
+  const [pending, startTransition] = useTransition()
+  const dateStr = lead.trial_at ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'
+  const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
+      <div>
+        <div style={{ fontWeight: 900, fontSize: 12 }}>{dateStr}</div>
+        <div style={{ fontWeight: 700, fontSize: 12, color: C.muted }}>{timeStr}</div>
+      </div>
+      <div>
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
+          {lead.form_received
+            ? <Tag tone="green">Jotform ✓</Tag>
+            : lead.form_sent_at
+              ? <Tag tone="yellow">Jotform pending</Tag>
+              : null}
+        </div>
+      </div>
+      <div>
+        {lead.confirmation_sent_at
+          ? <Tag tone="green">confirmed ✓</Tag>
+          : <Next onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</Next>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Upcoming actions row ─────────────────────────────────────────────────────
+function UpcomingRow({ lead, onOpen, onOpenParent }: {
+  lead: Lead & { guardians: Guardian }
+  onOpen: () => void
+  onOpenParent: () => void
+}) {
+  const dueDate = lead.next_action_at ? new Date(lead.next_action_at) : null
+  const dueDateStr = dueDate ? dueDate.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'
+  const isNextWeek = dueDate ? dueDate.getTime() - Date.now() > 6 * 86400000 : false
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
+      <div>
+        <div style={{ fontWeight: 900, fontSize: 12, color: isNextWeek ? C.muted : C.ink }}>{dueDateStr}</div>
+      </div>
+      <div>
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <div style={{ marginTop: 2 }}>
+          {lead.last_outcome
+            ? <Tag tone="grey">{lead.last_outcome}</Tag>
+            : <Tag tone="red" solid>not contacted</Tag>}
+        </div>
+      </div>
+      <div>
+        <Quiet onClick={onOpen}>View</Quiet>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sale row ─────────────────────────────────────────────────────────────────
 function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
   lead: Lead & { guardians: Guardian }
@@ -1086,10 +1175,10 @@ function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
 interface TodayClientProps {
   appUser: AppUser
   newLeads: (Lead & { guardians: Guardian })[]
+  upcomingNewLeads: (Lead & { guardians: Guardian })[]
   todayTrials: (Lead & { guardians: Guardian })[]
+  bookedLeads: (Lead & { guardians: Guardian })[]
   noShows: (Lead & { guardians: Guardian })[]
-  tomorrowTrials: (Lead & { guardians: Guardian })[]
-  thisWeekTrials: (Lead & { guardians: Guardian })[]
   unverifiedSales: (Lead & { guardians: Guardian })[]
   target: Target | null
   verifiedCount: number
@@ -1104,10 +1193,10 @@ interface TodayClientProps {
 export default function TodayClient({
   appUser,
   newLeads,
+  upcomingNewLeads,
   todayTrials,
+  bookedLeads,
   noShows,
-  tomorrowTrials,
-  thisWeekTrials,
   unverifiedSales,
   target,
   verifiedCount,
@@ -1120,11 +1209,28 @@ export default function TodayClient({
 }: TodayClientProps) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [openParentGuardianId, setOpenParentGuardianId] = useState<string | null>(null)
-  const [weekOpen, setWeekOpen] = useState(false)
+  const [trialTab, setTrialTab] = useState<'today' | 'tomorrow' | 'this_week' | 'next_week' | 'all'>('today')
   const [pending, startTransition] = useTransition()
 
+  // Compute tab date boundaries from todayStr
+  const tomorrowStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
+  const dayAfterTomStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10) })()
+  const dow = new Date(todayStr + 'T12:00:00').getDay()
+  const daysToSat = dow === 0 ? 6 : 6 - dow
+  const endOfThisWeekStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat); return d.toISOString().slice(0, 10) })()
+  const nextWeekStartStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 2); return d.toISOString().slice(0, 10) })() // Mon
+  const nextWeekEndStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 7); return d.toISOString().slice(0, 10) })() // Sat
+
+  const trialsByTab = {
+    today: bookedLeads.filter(l => l.trial_at?.startsWith(todayStr)),
+    tomorrow: bookedLeads.filter(l => l.trial_at?.startsWith(tomorrowStr)),
+    this_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= dayAfterTomStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
+    next_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
+    all: bookedLeads,
+  }
+
   // All leads for family lookups
-  const allLeads = [...newLeads, ...todayTrials, ...noShows, ...tomorrowTrials, ...thisWeekTrials, ...unverifiedSales]
+  const allLeads = [...newLeads, ...upcomingNewLeads, ...bookedLeads, ...noShows, ...unverifiedSales]
   // Deduplicate by id
   const allLeadsMap = new Map(allLeads.map(l => [l.id, l]))
   const allLeadsUniq = Array.from(allLeadsMap.values())
@@ -1212,38 +1318,67 @@ export default function TodayClient({
         ))}
       </Panel>
 
-      {/* ── Today's trials panel ── */}
+      {/* ── Trials panel ── */}
       <Panel
-        head="Today's trials — the sale happens here"
-        badge={<Tag tone="green" solid>today</Tag>}
-        sub={<span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>① arrived → ② outcome: 💰 sale or didn't enrol</span>}
+        head="Trials"
+        badge={todayTrials.length > 0 ? <Tag tone="green" solid>{todayTrials.length} today</Tag> : undefined}
+        sub={trialTab === 'today' ? <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>① arrived → ② 💰 sale or didn't enrol</span> : undefined}
       >
-        {todayTrials.length === 0 && noShows.length === 0 && (
-          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
-        )}
-        {todayTrials
-          .slice()
-          .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
-          .map(l => (
-            <TodayRow
-              key={l.id}
-              lead={l}
-              userId={appUser.id}
-              activities={todayActivities}
-              onOpen={() => setOpenLeadId(l.id)}
-              onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-            />
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.lineSoft}`, background: '#FCFAF7' }}>
+          {([
+            ['today', 'Today', trialsByTab.today.length],
+            ['tomorrow', 'Tomorrow', trialsByTab.tomorrow.length],
+            ['this_week', 'This week', trialsByTab.this_week.length],
+            ['next_week', 'Next week', trialsByTab.next_week.length],
+            ['all', 'All booked', trialsByTab.all.length],
+          ] as [string, string, number][]).map(([key, label, count]) => (
+            <button key={key} onClick={() => setTrialTab(key as typeof trialTab)}
+              style={{
+                fontFamily: FONT, fontWeight: 800, fontSize: 11.5, cursor: 'pointer',
+                padding: '8px 12px', border: 'none', borderBottom: `2px solid ${trialTab === key ? C.orange : 'transparent'}`,
+                background: 'transparent', color: trialTab === key ? C.orange : C.muted,
+                whiteSpace: 'nowrap',
+              }}>
+              {label}{count > 0 ? ` (${count})` : ''}
+            </button>
           ))}
-        {noShows.map(l => (
-          <NoShowRow
-            key={l.id}
-            lead={l}
-            userId={appUser.id}
-            programmes={programmes}
-            onOpen={() => setOpenLeadId(l.id)}
-            onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-          />
-        ))}
+        </div>
+
+        {/* Today tab: arrived/outcome flow */}
+        {trialTab === 'today' && (
+          <>
+            {trialsByTab.today.length === 0 && noShows.length === 0 && (
+              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
+            )}
+            {trialsByTab.today.map(l => (
+              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities}
+                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+            ))}
+            {noShows.length > 0 && (
+              <>
+                <div style={{ padding: '6px 12px', background: '#FCFAF7', borderTop: `1px solid ${C.lineSoft}`, fontSize: 10.5, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — re-book</div>
+                {noShows.map(l => (
+                  <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                ))}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Other tabs: booked row with date/confirmation */}
+        {trialTab !== 'today' && (
+          <>
+            {trialsByTab[trialTab].length === 0 && (
+              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials in this period.</div>
+            )}
+            {trialsByTab[trialTab].map(l => (
+              <BookedRow key={l.id} lead={l} userId={appUser.id}
+                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+            ))}
+          </>
+        )}
       </Panel>
 
       {/* ── Sales to process panel ── */}
@@ -1266,56 +1401,23 @@ export default function TodayClient({
         </Panel>
       )}
 
-      {/* ── Tomorrow panel ── */}
+      {/* ── Upcoming actions panel ── */}
       <Panel
-        head="Tomorrow — confirmations &amp; forms"
-        sub={<span style={{ fontSize: 12, fontWeight: 800, color: C.muted }}>{tomorrowTrials.length} booked</span>}
+        head="Upcoming actions — chase list"
+        sub={
+          <span style={{ fontSize: 12, fontWeight: 800, color: upcomingNewLeads.length ? C.yellow : C.muted }}>
+            {upcomingNewLeads.length ? `${upcomingNewLeads.length} scheduled` : 'none scheduled'}
+          </span>
+        }
       >
-        {tomorrowTrials.length === 0 && (
-          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials tomorrow.</div>
+        {upcomingNewLeads.length === 0 && (
+          <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No upcoming actions. Log a follow-up when calling to schedule reminders here.</div>
         )}
-        {tomorrowTrials
-          .slice()
-          .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
-          .map(l => (
-            <TomorrowRow
-              key={l.id}
-              lead={l}
-              userId={appUser.id}
-              onOpen={() => setOpenLeadId(l.id)}
-              onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-            />
-          ))}
+        {upcomingNewLeads.map(l => (
+          <UpcomingRow key={l.id} lead={l}
+            onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+        ))}
       </Panel>
-
-      {/* ── Later this week collapsible ── */}
-      <div style={{ marginBottom: 22 }}>
-        <button
-          onClick={() => setWeekOpen(v => !v)}
-          style={{ fontFamily: FONT, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 900, color: C.muted, padding: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.8 }}
-        >
-          {weekOpen ? '▾' : '▸'} Later this week · {thisWeekTrials.length} booked
-        </button>
-        {weekOpen && (
-          <Panel head="Later this week">
-            {thisWeekTrials.length === 0 && (
-              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials later this week.</div>
-            )}
-            {thisWeekTrials
-              .slice()
-              .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
-              .map(l => (
-                <TomorrowRow
-                  key={l.id}
-                  lead={l}
-                  userId={appUser.id}
-                  onOpen={() => setOpenLeadId(l.id)}
-                  onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
-                />
-              ))}
-          </Panel>
-        )}
-      </div>
 
       {/* ── Daily checklist ── */}
       <Panel
