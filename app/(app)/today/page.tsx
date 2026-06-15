@@ -63,6 +63,7 @@ export default async function TodayPage() {
 
   // Target — load for the user's site (or combined for admin/management)
   let targetData: Target | null = null
+  let perSiteTargets: Record<string, Target> = {}
   if (siteFilter) {
     const { data } = await supabase
       .from('targets')
@@ -72,12 +73,13 @@ export default async function TodayPage() {
       .single<Target>()
     targetData = data
   } else {
-    // Admin/management: sum both sites into a synthetic target
+    // Admin/management: fetch all sites and build combined + per-site
     const { data: allTargets } = await supabase
       .from('targets')
       .select('*')
       .eq('month', firstOfMonth)
     if (allTargets && allTargets.length > 0) {
+      for (const t of allTargets) perSiteTargets[t.site] = t
       const combined = allTargets.reduce((acc, t) => ({
         id: 'combined',
         site: 'coolaroo' as const,
@@ -92,7 +94,7 @@ export default async function TodayPage() {
   // Verified sales this month (for progress)
   let verifiedQuery = supabase
     .from('leads')
-    .select('id')
+    .select('id, site')
     .eq('status', 'won')
     .not('verified_at', 'is', null)
     .gte('sold_at', firstOfMonth + 'T00:00:00.000Z')
@@ -104,6 +106,11 @@ export default async function TodayPage() {
 
   const { data: verifiedSales } = await verifiedQuery
   const verifiedCount = verifiedSales?.length ?? 0
+  // Per-site verified counts for admin rail toggle
+  const verifiedBySite: Record<string, number> = {}
+  for (const v of verifiedSales ?? []) {
+    if (v.site) verifiedBySite[v.site] = (verifiedBySite[v.site] ?? 0) + 1
+  }
 
   // Blockout days for month
   let blockoutQuery = supabase
@@ -179,7 +186,9 @@ export default async function TodayPage() {
       noShows={noShows}
       unverifiedSales={unverifiedSales}
       target={targetData}
+      perSiteTargets={perSiteTargets}
       verifiedCount={verifiedCount}
+      verifiedBySite={verifiedBySite}
       blockoutDays={(blockoutDays ?? []) as BlockoutDay[]}
       checklistItems={(checklistItems ?? []) as ChecklistItem[]}
       completions={(completions ?? []) as ChecklistCompletion[]}

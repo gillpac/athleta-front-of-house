@@ -607,7 +607,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
   }
 
   const firstCellStyle: React.CSSProperties = {
-    padding: '13px 22px',
+    padding: '13px 16px 13px 22px',
     borderBottom: `1px solid ${C.line}`,
     verticalAlign: 'middle',
     ...(isHot ? { boxShadow: `inset 3px 0 0 ${C.orange}` } : {}),
@@ -1015,7 +1015,9 @@ interface TodayClientProps {
   noShows: (Lead & { guardians: Guardian })[]
   unverifiedSales: (Lead & { guardians: Guardian })[]
   target: Target | null
+  perSiteTargets?: Record<string, Target>
   verifiedCount: number
+  verifiedBySite?: Record<string, number>
   blockoutDays: BlockoutDay[]
   checklistItems: ChecklistItem[]
   completions: ChecklistCompletion[]
@@ -1034,7 +1036,9 @@ export default function TodayClient({
   noShows,
   unverifiedSales,
   target,
+  perSiteTargets = {},
   verifiedCount,
+  verifiedBySite = {},
   blockoutDays,
   checklistItems,
   completions,
@@ -1106,13 +1110,17 @@ export default function TodayClient({
   }
 
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
-  const goal = target?.net_growth_goal ?? 0
-  const salesGoal = target?.sales_goal ?? 0
-  const actual = verifiedCount
-  const toGo = Math.max(0, goal - actual)
-  const pct = goal > 0 ? Math.min(100, Math.round((actual / goal) * 100)) : 0
   const month = monthName(todayStr)
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
+
+  // Rail site toggle selects which target/count to display
+  const railTarget = railSite === 'all' ? target : (perSiteTargets[railSite] ?? target)
+  const railActual = railSite === 'all' ? verifiedCount : (verifiedBySite[railSite] ?? 0)
+  const goal = railTarget?.net_growth_goal ?? 0
+  const salesGoal = railTarget?.sales_goal ?? 0
+  const actual = railActual
+  const toGo = Math.max(0, goal - actual)
+  const pct = goal > 0 ? Math.min(100, Math.round((actual / goal) * 100)) : 0
 
   // Half-gauge SVG (semicircle, dasharray-based like reference)
   const ARC_TOTAL = 308 // circumference of r=98 semicircle ≈ π×98
@@ -1163,10 +1171,10 @@ export default function TodayClient({
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ width: 120, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Received</th>
+                  <th style={{ width: 88, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 16px 6px 22px', borderBottom: `1px solid ${C.line}` }}>Received</th>
                   <th style={{ fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Child &amp; guardian</th>
-                  <th style={{ width: 180, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Status</th>
-                  {isMultiSite && <th style={{ width: 110, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Site</th>}
+                  <th style={{ width: 140, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Status</th>
+                  {isMultiSite && <th style={{ width: 100, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Site</th>}
                   <th style={{ borderBottom: `1px solid ${C.line}` }} />
                 </tr>
               </thead>
@@ -1195,22 +1203,23 @@ export default function TodayClient({
           sub="Mark arrival, then the outcome"
           right={todayTrials.length > 0 ? `${todayTrials.length} today` : undefined}
         >
-          {/* Seg bar: tabs left, site toggle right */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 22px 14px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              {([
-                ['today', 'Today'],
-                ['tomorrow', 'Tomorrow'],
-                ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
-                ['next_week', 'Next week'],
-                ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
-                ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
-                ['custom', 'Custom…'],
-              ] as [string, string][]).map(([key, label]) => (
-                <button key={key} onClick={() => setTrialTab(key as typeof trialTab)} style={segtabStyle(key)}>{label}</button>
-              ))}
-            </div>
-            {isMultiSite && (
+          {/* Tab row */}
+          <div style={{ display: 'flex', gap: 2, padding: '0 22px 10px', overflowX: 'auto' }}>
+            {([
+              ['today', 'Today'],
+              ['tomorrow', 'Tomorrow'],
+              ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
+              ['next_week', 'Next week'],
+              ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
+              ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
+              ['custom', 'Custom…'],
+            ] as [string, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setTrialTab(key as typeof trialTab)} style={{ ...segtabStyle(key), whiteSpace: 'nowrap' }}>{label}</button>
+            ))}
+          </div>
+          {/* Site toggle row (admin only) — always on its own line */}
+          {isMultiSite && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 22px 12px' }}>
               <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2 }}>
                 {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
                   <button key={s} onClick={() => setSiteFilter(s)} style={siteToggleStyle(s)}>
@@ -1218,8 +1227,8 @@ export default function TodayClient({
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Custom date range */}
           {trialTab === 'custom' && (
