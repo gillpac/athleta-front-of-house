@@ -12,7 +12,7 @@ const TABS = [
   { label: 'Today', href: '/today' },
   { label: 'Leads', href: '/leads' },
   { label: 'Cancellations', href: '/cancellations' },
-  { label: 'Stats', href: '/stats' },
+  { label: 'Reports', href: '/stats' },
   { label: 'Settings', href: '/settings', adminOnly: true },
 ]
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT, SiteSettings } from '@/types'
 import { upsertTarget, updateSiteMembers, fetchTargetsForMonth } from './actions'
 
@@ -274,7 +275,7 @@ interface Props {
   leads: Lead[]
   cancellations: Cancellation[]
   targets: Target[]
-  sourceLeads: { source: string; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; received_at: string }[]
+  sourceLeads: { source: string; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; received_at: string; site: string | null }[]
   staff: AppUser[]
   blockoutDays: BlockoutDay[]
   monthStart: string
@@ -282,11 +283,27 @@ interface Props {
   siteSettings: SiteSettings[]
 }
 
-export default function StatsClient({ user, leads, cancellations, targets, sourceLeads, staff, blockoutDays, monthStart, todayStr, siteSettings }: Props) {
+export default function StatsClient({ user, leads: allLeads, cancellations: allCancellations, targets: allTargets, sourceLeads: allSourceLeads, staff, blockoutDays, monthStart, todayStr, siteSettings }: Props) {
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const isManagement = user.role === 'management'
-  const siteFilter = isAdmin ? null : user.site
   const [tab, setTab] = useState<'overview' | 'sources' | 'targets' | 'debit'>('overview')
+  const [displaySite, setDisplaySite] = useState<string>('all')
+  const router = useRouter()
+
+  const siteFilter = isAdmin ? (displaySite === 'all' ? null : displaySite) : user.site
+
+  // Apply site filter to data
+  const leads = siteFilter ? allLeads.filter(l => l.site === siteFilter) : allLeads
+  const cancellations = siteFilter ? allCancellations.filter(c => c.site === siteFilter) : allCancellations
+  const targets = siteFilter ? allTargets.filter(t => t.site === siteFilter) : allTargets
+  const sourceLeads = siteFilter ? allSourceLeads.filter(l => l.site === siteFilter) : allSourceLeads
+
+  function navigateMonth(delta: number) {
+    const d = new Date(monthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() + delta)
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    router.push(`?month=${next}`)
+  }
 
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
 
@@ -296,7 +313,6 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
   const verifiedDepartures = cancellations.filter(c => c.stage === 'verified' && c.outcome === 'departed')
   const netGrowth = verifiedSales.length - verifiedDepartures.length
 
-  const target = targets[0] // for single-site users; admin sees combined
   const netGoal = targets.reduce((sum, t) => sum + t.net_growth_goal, 0)
   const salesGoal = targets.reduce((sum, t) => sum + (t.sales_goal ?? 0), 0)
 
@@ -340,6 +356,36 @@ export default function StatsClient({ user, leads, cancellations, targets, sourc
 
   return (
     <div style={{ maxWidth: 800 }}>
+      {/* Month navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <button onClick={() => navigateMonth(-1)}
+          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+          ←
+        </button>
+        <span style={{ fontSize: 15, fontWeight: 700, minWidth: 160, textAlign: 'center' }}>{monthLabel(monthStart)}</span>
+        <button onClick={() => navigateMonth(1)}
+          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+          →
+        </button>
+      </div>
+
+      {/* Site filter (admin/management only) */}
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
+            <button key={s} onClick={() => setDisplaySite(s)}
+              style={{
+                padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: displaySite === s ? C.INK : C.WHITE,
+                color: displaySite === s ? C.WHITE : C.INK,
+                border: `1px solid ${displaySite === s ? C.INK : C.BORDER}`,
+              }}>
+              {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.BORDER}`, marginBottom: 24 }}>
         {(['overview', 'sources', ...(isAdmin ? ['targets', 'debit'] : [])] as string[]).map(t => (

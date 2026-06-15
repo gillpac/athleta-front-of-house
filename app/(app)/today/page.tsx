@@ -20,27 +20,12 @@ export default async function TodayPage() {
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
 
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
-  // End of current week (Saturday)
-  const dow = today.getDay() // 0=Sun
-  const daysToSat = dow === 0 ? 6 : 6 - dow
-  const endOfWeek = new Date(today)
-  endOfWeek.setDate(today.getDate() + daysToSat)
-  const endOfWeekStr = endOfWeek.toISOString().split('T')[0]
-
-  const dayAfterTomorrow = new Date(tomorrow)
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
-  const dayAfterTomorrowStr = dayAfterTomorrow.toISOString().split('T')[0]
-
   // First day of current month
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Site filter
-  const siteFilter = appUser.site
+  // Site filter — receptionist/site_lead are locked to their site; admin/management see all
+  const siteFilter = appUser.site ?? null
 
   // Build leads query
   let leadsQuery = supabase
@@ -57,24 +42,20 @@ export default async function TodayPage() {
 
   const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
 
-  const newLeads = leads.filter(l => l.status === 'new')
+  const endOfToday = todayStr + 'T23:59:59'
+  const newLeads = leads.filter(l => l.status === 'new' && (!l.next_action_at || l.next_action_at <= endOfToday))
+  const upcomingNewLeads = leads
+    .filter(l => l.status === 'new' && l.next_action_at && l.next_action_at > endOfToday)
+    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&
     l.trial_at != null &&
     l.trial_at.startsWith(todayStr)
   )
+  const bookedLeads = leads
+    .filter(l => l.status === 'booked')
+    .sort((a, b) => (a.trial_at ?? '').localeCompare(b.trial_at ?? ''))
   const noShows = leads.filter(l => l.status === 'noshow')
-  const tomorrowTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.startsWith(tomorrowStr)
-  )
-  const thisWeekTrials = leads.filter(l =>
-    l.status === 'booked' &&
-    l.trial_at != null &&
-    l.trial_at.slice(0, 10) >= dayAfterTomorrowStr &&
-    l.trial_at.slice(0, 10) <= endOfWeekStr
-  )
   const unverifiedSales = leads.filter(l => l.status === 'won' && l.verified_at == null)
 
   // Target — load for the user's site (or combined for admin/management)
@@ -156,17 +137,27 @@ export default async function TodayPage() {
     .eq('user_id', appUser.id)
     .eq('day', todayStr)
 
-  // Activities for today's trials (to determine arrived state)
-  const trialLeadIds = todayTrials.map(l => l.id)
-  let activitiesData: Array<{ lead_id: string; kind: string; body: string; created_at: string }> = []
-  if (trialLeadIds.length > 0) {
+  // Activities for all visible leads (arrived state + profile timeline)
+  const allVisibleIds = Array.from(new Set([
+    ...newLeads.map(l => l.id),
+    ...upcomingNewLeads.map(l => l.id),
+    ...bookedLeads.map(l => l.id),
+    ...noShows.map(l => l.id),
+  ]))
+  let activitiesData: Array<{ lead_id: string; user_id: string | null; kind: string; body: string; created_at: string }> = []
+  if (allVisibleIds.length > 0) {
     const { data: acts } = await supabase
       .from('activities')
-      .select('lead_id, kind, body, created_at')
-      .in('lead_id', trialLeadIds)
+      .select('lead_id, user_id, kind, body, created_at')
+      .in('lead_id', allVisibleIds)
       .order('created_at', { ascending: false })
     activitiesData = acts ?? []
   }
+
+  // User name map for timeline attribution
+  const { data: allUsers } = await supabase.from('app_users').select('id, name')
+  const userNames: Record<string, string> = {}
+  for (const u of allUsers ?? []) userNames[u.id] = u.name
 
   // Programmes
   const { data: programmes } = await supabase
@@ -179,10 +170,10 @@ export default async function TodayPage() {
     <TodayClient
       appUser={appUser}
       newLeads={newLeads}
+      upcomingNewLeads={upcomingNewLeads}
       todayTrials={todayTrials}
+      bookedLeads={bookedLeads}
       noShows={noShows}
-      tomorrowTrials={tomorrowTrials}
-      thisWeekTrials={thisWeekTrials}
       unverifiedSales={unverifiedSales}
       target={targetData}
       verifiedCount={verifiedCount}
@@ -190,6 +181,7 @@ export default async function TodayPage() {
       checklistItems={(checklistItems ?? []) as ChecklistItem[]}
       completions={(completions ?? []) as ChecklistCompletion[]}
       todayActivities={activitiesData}
+      userNames={userNames}
       programmes={(programmes ?? []) as Programme[]}
       todayStr={todayStr}
     />

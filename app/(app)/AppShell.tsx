@@ -20,7 +20,7 @@ const TABS: Tab[] = [
   { label: 'Today', href: '/today', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Leads', href: '/leads', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Cancellations', href: '/cancellations', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
-  { label: 'Stats', href: '/stats', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
+  { label: 'Reports', href: '/stats', roles: ['receptionist', 'site_lead', 'admin', 'management'] },
   { label: 'Settings', href: '/settings', roles: ['admin', 'management'] },
 ]
 
@@ -65,7 +65,7 @@ export default function AppShell({
             FRONT OF HOUSE
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
             <div style={{ fontSize: 11, color: '#84776A', marginTop: 1 }}>

@@ -2,10 +2,8 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import type { AppUser, Lead, Guardian, Activity, Programme } from '@/types'
-import {
-  logCallOutcome, bookTrial, markNoShow, makeSale,
-  markDidntEnrol, markLost, sendConfirmation, verifyLead, addNote, archiveLead,
-} from './actions'
+import { createLead, bookTrial, makeSale } from './actions'
+import { ProfilePanel } from '../components/ProfilePanel'
 
 const C = {
   SAND: '#F6F3EE',
@@ -19,6 +17,7 @@ const C = {
   YELLOW: '#B7791F',
   YELLOW_BG: '#FFFBEB',
 }
+const FONT = "'Nunito', system-ui, sans-serif"
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'New',
@@ -29,13 +28,13 @@ const STATUS_LABELS: Record<string, string> = {
   lost: 'Lost',
 }
 
-const STATUS_COLOURS: Record<string, { bg: string; color: string }> = {
-  new: { bg: C.RED, color: C.WHITE },
-  booked: { bg: '#D97706', color: C.WHITE },
-  noshow: { bg: '#D97706', color: C.WHITE },
-  won: { bg: C.GREEN, color: C.WHITE },
-  nurture: { bg: '#6B7280', color: C.WHITE },
-  lost: { bg: '#9CA3AF', color: C.WHITE },
+const STATUS_COLOURS: Record<string, { background: string; color: string }> = {
+  new: { background: C.RED, color: C.WHITE },
+  booked: { background: '#D97706', color: C.WHITE },
+  noshow: { background: '#D97706', color: C.WHITE },
+  won: { background: C.GREEN, color: C.WHITE },
+  nurture: { background: '#6B7280', color: C.WHITE },
+  lost: { background: '#9CA3AF', color: C.WHITE },
 }
 
 const LOSS_REASONS = ['Too expensive', 'Not the right time', 'Too far away', 'Chose another gym', 'Other']
@@ -56,6 +55,25 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+const FIELD_LABEL_OVERRIDES: Record<string, string> = {
+  prefDays: 'Preferred days',
+  preferred_day: 'Preferred day',
+  prior: 'Prior experience',
+  notes: 'Notes',
+  childName: 'Child name',
+  guardian: 'Guardian',
+  mobile: 'Mobile',
+  interest: 'Interest',
+}
+
+function fmtFieldLabel(key: string): string {
+  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
@@ -74,6 +92,7 @@ interface Props {
   guardians: Guardian[]
   activities: Activity[]
   programmes: Programme[]
+  userNames: Record<string, string>
 }
 
 interface BookingModalProps {
@@ -178,297 +197,101 @@ function EnrolModal({ leadId, userId, formReceived, onClose }: EnrolModalProps) 
   )
 }
 
-interface ProfilePanelProps {
-  lead: Lead
-  guardian: Guardian | undefined
-  siblings: Lead[]
-  activities: Activity[]
-  programmes: Programme[]
-  user: AppUser
-  onClose: () => void
-}
 
-function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, onClose }: ProfilePanelProps) {
-  const [note, setNote] = useState('')
+const SOURCES = ['walk-in', 'phone enquiry', 'website', 'facebook', 'instagram', 'referral', 'other']
+const RELATIONSHIPS = ['Mother', 'Father', 'Carer', 'Guardian']
+
+function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes: Programme[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
-  const [showBooking, setShowBooking] = useState(false)
-  const [showEnrol, setShowEnrol] = useState(false)
-  const [showLoss, setShowLoss] = useState(false)
-  const [lossMode, setLossMode] = useState<'nurture' | 'lost'>('nurture')
-  const [lossReason, setLossReason] = useState('Price')
-  const [lossFollowup, setLossFollowup] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })
-  const [showCallMenu, setShowCallMenu] = useState(false)
-
   const isAdmin = user.role === 'admin' || user.role === 'management'
-  const prog = programmes.find(p => p.id === lead.programme_id)
-  const statusC = STATUS_COLOURS[lead.status] ?? { bg: '#6B7280', color: C.WHITE }
-  const leadActivities = activities.filter(a => a.lead_id === lead.id)
+  const [f, setF] = useState({
+    childFirst: '', childLast: '', dob: '', gender: '', programmeId: '', site: user.site ?? 'coolaroo',
+    source: 'walk-in', referrerName: '', notes: '',
+    guardianFirst: '', guardianLast: '', phone: '', email: '', relationship: 'Mother',
+  })
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF(p => ({ ...p, [k]: e.target.value }))
 
-  function submitNote() {
-    if (!note.trim()) return
+  function submit() {
+    if (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) return
     startTransition(async () => {
-      await addNote(lead.id, user.id, note.trim())
-      setNote('')
-    })
-  }
-
-  function doArchive() {
-    if (!confirm('Archive this lead? This cannot be undone easily.')) return
-    startTransition(async () => {
-      await archiveLead(lead.id, user.id)
+      await createLead({ ...f, dob: f.dob || null, gender: f.gender || null, programmeId: f.programmeId || null, referrerName: f.referrerName || null, notes: f.notes || null }, user.id)
       onClose()
     })
   }
 
-  const enquiryFields = lead.enquiry_raw
-    ? Object.entries(lead.enquiry_raw).filter(([, v]) => v !== null && v !== '' && v !== undefined)
-    : []
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: `1px solid ${C.BORDER}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }
+  const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4, marginTop: 14 }
 
   return (
-    <>
-      {showBooking && <BookingModal leadId={lead.id} userId={user.id} programmes={programmes} onClose={() => setShowBooking(false)} />}
-      {showEnrol && <EnrolModal leadId={lead.id} userId={user.id} formReceived={lead.form_received} onClose={() => setShowEnrol(false)} />}
-      {showLoss && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: C.WHITE, width: 360, padding: 24, border: `1px solid ${C.BORDER}` }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Didn&apos;t enrol — what now?</div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-              {(['nurture', 'lost'] as const).map(m => (
-                <button key={m} onClick={() => setLossMode(m)} style={{
-                  flex: 1, padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  background: lossMode === m ? C.INK : C.WHITE,
-                  color: lossMode === m ? C.WHITE : C.MUTED,
-                  border: `1px solid ${lossMode === m ? C.INK : C.BORDER}`,
-                }}>
-                  {m === 'nurture' ? '🌱 Nurture' : '✗ Lost'}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: lossMode === 'nurture' ? C.MUTED : C.RED, marginBottom: 10 }}>
-              {lossMode === 'nurture' ? 'Follow up later — stays in system with a future date' : 'Dead lead — no further follow-up'}
-            </div>
-            <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Reason</label>
-            <select value={lossReason} onChange={e => setLossReason(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }}>
-              {LOSS_REASONS.map(r => <option key={r}>{r}</option>)}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 16px' }}>
+      <div style={{ background: C.WHITE, width: '100%', maxWidth: 480, padding: 24, border: `1px solid ${C.BORDER}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>Add lead</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Child</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>First name *</label><input value={f.childFirst} onChange={set('childFirst')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Last name</label><input value={f.childLast} onChange={set('childLast')} style={inp} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>Date of birth</label><input type="date" value={f.dob} onChange={set('dob')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Gender</label>
+            <select value={f.gender} onChange={set('gender')} style={inp}>
+              <option value="">—</option>
+              <option>Female</option><option>Male</option><option>Other</option>
             </select>
-            {lossMode === 'nurture' && (
-              <>
-                <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Follow-up date</label>
-                <input type="date" value={lossFollowup} onChange={e => setLossFollowup(e.target.value)}
-                  style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }} />
-              </>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowLoss(false)} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-              <button onClick={() => {
-                setShowLoss(false)
-                if (lossMode === 'nurture') startTransition(() => markDidntEnrol(lead.id, lossReason, user.id, lossFollowup))
-                else startTransition(() => markLost(lead.id, lossReason, user.id))
-              }} style={{ flex: 1, padding: '10px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-                {lossMode === 'nurture' ? 'Move to nurture' : 'Mark lost'}
-              </button>
-            </div>
           </div>
         </div>
-      )}
+        <label style={label}>Programme interest</label>
+        <select value={f.programmeId} onChange={set('programmeId')} style={inp}>
+          <option value="">—</option>
+          {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
 
-      <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={onClose} />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, maxWidth: '100vw',
-        background: C.WHITE, borderLeft: `1px solid ${C.BORDER}`, zIndex: 201,
-        display: 'flex', flexDirection: 'column', overflowY: 'auto',
-      }}>
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lead.child_first} {lead.child_last}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-              <span style={{ ...statusC, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{STATUS_LABELS[lead.status]}</span>
-              {prog && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.INK }}>{prog.name}</span>}
-              {lead.site && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.MUTED }}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED, lineHeight: 1 }}>×</button>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 18, marginBottom: 8 }}>Guardian</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>First name *</label><input value={f.guardianFirst} onChange={set('guardianFirst')} style={inp} /></div>
+          <div style={{ flex: 1 }}><label style={label}>Last name</label><input value={f.guardianLast} onChange={set('guardianLast')} style={inp} /></div>
         </div>
+        <label style={label}>Phone *</label><input value={f.phone} onChange={set('phone')} style={inp} placeholder="04xx xxx xxx" />
+        <label style={label}>Email</label><input type="email" value={f.email} onChange={set('email')} style={inp} />
+        <label style={label}>Relationship</label>
+        <select value={f.relationship} onChange={set('relationship')} style={inp}>
+          {RELATIONSHIPS.map(r => <option key={r}>{r}</option>)}
+        </select>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 120px' }}>
-          {/* Child details */}
-          <Section title="Child">
-            <Row label="Date of birth" value={lead.dob ? `${fmtDate(lead.dob)} (${age(lead.dob)})` : '—'} />
-            <Row label="Gender" value={lead.gender ?? '—'} />
-            <Row label="Source" value={lead.source} />
-            {lead.referrer_name && <Row label="Referred by" value={lead.referrer_name} />}
-            <Row label="Form received" value={lead.form_received ? '✓ Yes' : '✗ No'} valueColor={lead.form_received ? C.GREEN : C.RED} />
-          </Section>
-
-          {/* Guardian */}
-          {guardian && (
-            <Section title="Guardian">
-              <Row label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
-              <Row label="Phone" value={guardian.phone} />
-              {guardian.email && <Row label="Email" value={guardian.email} />}
-              {guardian.preferred_contact && <Row label="Preferred contact" value={guardian.preferred_contact} />}
-            </Section>
-          )}
-
-          {/* Family */}
-          {siblings.length > 0 && (
-            <Section title="Family">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {siblings.map(s => {
-                  const sc = STATUS_COLOURS[s.status] ?? { bg: '#6B7280', color: C.WHITE }
-                  return (
-                    <span key={s.id} style={{ ...sc, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-                      {s.child_first} · {STATUS_LABELS[s.status]}
-                    </span>
-                  )
-                })}
-              </div>
-            </Section>
-          )}
-
-          {/* Trial info */}
-          {(lead.trial_at || lead.status === 'won') && (
-            <Section title="Trial / Enrolment">
-              {lead.trial_at && <Row label="Trial" value={fmtDateTime(lead.trial_at)} />}
-              {lead.confirmation_sent_at && <Row label="Confirmation sent" value={fmtDateTime(lead.confirmation_sent_at)} valueColor={C.GREEN} />}
-              {lead.sold_at && <Row label="Enrolled" value={fmtDateTime(lead.sold_at)} />}
-              {lead.first_class && <Row label="First class" value={`${lead.first_class_date ? fmtDate(lead.first_class_date) : ''} ${lead.first_class}`} />}
-              {lead.payment_taken !== undefined && <Row label="Payment taken" value={lead.payment_taken ? '✓ Yes' : '✗ No'} valueColor={lead.payment_taken ? C.GREEN : C.RED} />}
-              {lead.verified_at && <Row label="Admin verified" value={fmtDateTime(lead.verified_at)} valueColor={C.GREEN} />}
-            </Section>
-          )}
-
-          {/* Nurture */}
-          {lead.status === 'nurture' && lead.nurture_followup_at && (
-            <Section title="Nurture">
-              <Row label="Follow-up date" value={fmtDate(lead.nurture_followup_at)} />
-              {lead.lost_reason && <Row label="Reason" value={lead.lost_reason} />}
-            </Section>
-          )}
-
-          {/* Enquiry */}
-          {enquiryFields.length > 0 && (
-            <Section title="Enquiry details">
-              {enquiryFields.map(([k, v]) => (
-                <Row key={k} label={k.replace(/_/g, ' ')} value={String(v)} />
-              ))}
-            </Section>
-          )}
-
-          {/* Add note */}
-          <Section title="Add note">
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-              placeholder="Type a note…"
-              style={{ width: '100%', padding: 8, border: `1px solid ${C.BORDER}`, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-            />
-            <button onClick={submitNote} disabled={!note.trim() || pending}
-              style={{ marginTop: 6, padding: '8px 16px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, opacity: !note.trim() ? 0.5 : 1 }}>
-              {pending ? 'Saving…' : 'Add note'}
-            </button>
-          </Section>
-
-          {/* Timeline */}
-          <Section title="Timeline">
-            {leadActivities.length === 0 && <div style={{ fontSize: 13, color: C.MUTED }}>No activity yet</div>}
-            {leadActivities.map(a => (
-              <div key={a.id} style={{ borderLeft: `2px solid ${C.BORDER}`, paddingLeft: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: C.MUTED }}>{new Date(a.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
-                <div style={{ fontSize: 13 }}>{a.body}</div>
-              </div>
-            ))}
-          </Section>
-        </div>
-
-        {/* Action bar */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.WHITE, borderTop: `1px solid ${C.BORDER}`, padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Call dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowCallMenu(v => !v)}
-              style={{ padding: '9px 12px', background: C.INK, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13 }}>
-              📞 Call ▾
-            </button>
-            {showCallMenu && (
-              <div style={{ position: 'absolute', bottom: '100%', left: 0, background: C.WHITE, border: `1px solid ${C.BORDER}`, zIndex: 10, minWidth: 200 }}>
-                {CALL_OUTCOMES.map(o => (
-                  <button key={o} onClick={() => {
-                    setShowCallMenu(false)
-                    startTransition(() => logCallOutcome(lead.id, o, user.id))
-                  }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 18, marginBottom: 8 }}>Enquiry</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={label}>Source</label>
+            <select value={f.source} onChange={set('source')} style={inp}>
+              {SOURCES.map(s => <option key={s}>{s}</option>)}
+            </select>
           </div>
-
-          {(lead.status === 'new' || lead.status === 'noshow') && (
-            <button onClick={() => setShowBooking(true)}
-              style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              {lead.status === 'noshow' ? 'Re-book' : 'Book Trial'}
-            </button>
-          )}
-
-          {lead.status === 'booked' && (
-            <>
-              {!lead.confirmation_sent_at && (
-                <button onClick={() => startTransition(() => sendConfirmation(lead.id, user.id))}
-                  style={{ padding: '9px 14px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13 }}>
-                  Send confirmation
-                </button>
-              )}
-              <button onClick={() => setShowEnrol(true)}
-                style={{ padding: '9px 14px', background: C.GREEN, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                💰 Make Sale
-              </button>
-              <button onClick={() => setShowLoss(true)}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
-                Didn&apos;t enrol
-              </button>
-              <button onClick={() => { if (confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, user.id)) }}
-                style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
-                No-show
-              </button>
-            </>
-          )}
-
-          {lead.status === 'won' && !lead.verified_at && isAdmin && (
-            <button onClick={() => startTransition(() => verifyLead(lead.id, user.id))}
-              style={{ padding: '9px 14px', background: C.GREEN, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              Verify Sale ✓
-            </button>
-          )}
-
           {isAdmin && (
-            <button onClick={doArchive}
-              style={{ padding: '9px 14px', background: C.WHITE, color: C.RED, border: `1px solid ${C.RED}`, cursor: 'pointer', fontSize: 13 }}>
-              Archive
-            </button>
+            <div style={{ flex: 1 }}><label style={label}>Site</label>
+              <select value={f.site} onChange={set('site')} style={inp}>
+                <option value="coolaroo">Coolaroo</option>
+                <option value="altona_north">Altona North</option>
+              </select>
+            </div>
           )}
+        </div>
+        {f.source === 'referral' && (
+          <><label style={label}>Referred by</label><input value={f.referrerName} onChange={set('referrerName')} style={inp} /></>
+        )}
+        <label style={label}>Notes</label>
+        <textarea value={f.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes…" style={{ ...inp, resize: 'vertical' }} />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+          <button onClick={submit} disabled={!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || pending}
+            style={{ flex: 2, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, opacity: (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) ? 0.5 : 1 }}>
+            {pending ? 'Saving…' : 'Add lead'}
+          </button>
         </div>
       </div>
-    </>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{title}</div>
-      {children}
-    </div>
-  )
-}
-
-function Row({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: `1px solid ${C.BORDER}` }}>
-      <span style={{ color: C.MUTED }}>{label}</span>
-      <span style={{ color: valueColor ?? C.INK, fontWeight: 500 }}>{value}</span>
     </div>
   )
 }
@@ -476,12 +299,56 @@ function Row({ label, value, valueColor }: { label: string; value: string; value
 const STATUS_FILTERS = ['all', 'new', 'booked', 'noshow', 'won', 'nurture'] as const
 const STATUS_FILTER_LABELS: Record<string, string> = { all: 'All', new: 'New', booked: 'Booked', noshow: 'No-show', won: 'Enrolled', nurture: 'Nurture' }
 
-export default function LeadsClient({ user, leads, guardians, activities, programmes }: Props) {
+// Granular pre-trial sub-filters for 'new' status
+const PRE_TRIAL_FILTERS = [
+  { key: 'new_all', label: 'All new' },
+  { key: 'new_uncontacted', label: 'Not contacted' },
+  { key: 'new_contacted', label: 'Contacted — not booked' },
+]
+const POST_TRIAL_FILTERS = [
+  { key: 'booked', label: 'Booked for trial' },
+  { key: 'noshow', label: 'No-show' },
+  { key: 'won', label: 'Enrolled' },
+  { key: 'nurture', label: 'Nurture' },
+  { key: 'lost', label: 'Lost' },
+]
+const DATE_FILTERS = ['all', 'today', 'this_week', 'last_week', 'this_month', 'last_month', 'custom'] as const
+const DATE_FILTER_LABELS: Record<string, string> = { all: 'All dates', today: 'Today', this_week: 'This week', last_week: 'Last week', this_month: 'This month', last_month: 'Last month', custom: 'Custom range…' }
+
+function isInDateRange(isoDate: string, filter: string, customFrom?: string, customTo?: string): boolean {
+  if (filter === 'all') return true
+  const d = new Date(isoDate)
+  const now = new Date()
+  const startOfDay = (dt: Date) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
+  const today = startOfDay(now)
+  if (filter === 'today') return d >= today && d < new Date(today.getTime() + 86400000)
+  const day = now.getDay()
+  const monday = new Date(today); monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1))
+  if (filter === 'this_week') return d >= monday
+  const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7)
+  if (filter === 'last_week') return d >= lastMonday && d < monday
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  if (filter === 'this_month') return d >= firstOfMonth
+  const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  if (filter === 'last_month') return d >= firstOfLastMonth && d < firstOfMonth
+  if (filter === 'custom') {
+    if (customFrom && d < new Date(customFrom + 'T00:00:00')) return false
+    if (customTo && d > new Date(customTo + 'T23:59:59')) return false
+    return true
+  }
+  return true
+}
+
+export default function LeadsClient({ user, leads, guardians, activities, programmes, userNames }: Props) {
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [siteFilter, setSiteFilter] = useState<string>('all')
+  const [dateFilter, setDateFilter] = useState<string>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   const guardianMap = useMemo(() => {
     const m: Record<string, Guardian> = {}
@@ -489,11 +356,21 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
     return m
   }, [guardians])
 
+  const leadsWithGuardians = useMemo(() =>
+    leads.flatMap(l => {
+      const g = guardianMap[l.guardian_id]
+      return g ? [{ ...l, guardians: g }] : []
+    }), [leads, guardianMap])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return leads.filter(l => {
-      if (statusFilter !== 'all' && l.status !== statusFilter) return false
+      if (statusFilter === 'new_all' && l.status !== 'new') return false
+      if (statusFilter === 'new_uncontacted' && !(l.status === 'new' && !l.contacted)) return false
+      if (statusFilter === 'new_contacted' && !(l.status === 'new' && l.contacted)) return false
+      if (statusFilter !== 'all' && !statusFilter.startsWith('new_') && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
+      if (!isInDateRange(l.received_at, dateFilter, customFrom, customTo)) return false
       if (!q) return true
       const g = guardianMap[l.guardian_id]
       const childName = `${l.child_first} ${l.child_last}`.toLowerCase()
@@ -501,12 +378,7 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
       const phone = g?.phone ?? ''
       return childName.includes(q) || guardianName.includes(q) || phone.includes(q)
     })
-  }, [leads, statusFilter, siteFilter, search, guardianMap])
-
-  const selectedLead = selectedId ? leads.find(l => l.id === selectedId) : null
-  const siblings = selectedLead
-    ? leads.filter(l => l.guardian_id === selectedLead.guardian_id && l.id !== selectedLead.id)
-    : []
+  }, [leads, statusFilter, siteFilter, dateFilter, customFrom, customTo, search, guardianMap])
 
   return (
     <div style={{ maxWidth: 800 }}>
@@ -519,23 +391,40 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
         style={{ width: '100%', padding: '10px 14px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box', background: C.WHITE }}
       />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: isAdmin ? 8 : 16, flexWrap: 'wrap' }}>
-        {STATUS_FILTERS.map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            style={{
-              padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: statusFilter === s ? C.ORANGE : C.WHITE,
-              color: statusFilter === s ? C.WHITE : C.INK,
-              border: `1px solid ${statusFilter === s ? C.ORANGE : C.BORDER}`,
-            }}>
-            {STATUS_FILTER_LABELS[s]}
+      {/* Status filters — two rows */}
+      <div style={{ marginBottom: isAdmin ? 8 : 16 }}>
+        {/* Row 1: pre-trial (new leads) */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>New leads</span>
+          <button onClick={() => setStatusFilter('all')}
+            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === 'all' ? C.ORANGE : C.WHITE, color: statusFilter === 'all' ? C.WHITE : C.INK, border: `1px solid ${statusFilter === 'all' ? C.ORANGE : C.BORDER}` }}>
+            All
           </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+          {PRE_TRIAL_FILTERS.map(f => (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.ORANGE : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.INK, border: `1px solid ${statusFilter === f.key ? C.ORANGE : C.BORDER}` }}>
+              {f.label}
+            </button>
+          ))}
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={() => setShowAddModal(true)}
+            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.ORANGE, color: C.WHITE, border: 'none' }}>
+            + Add lead
+          </button>
+        </div>
+        {/* Row 2: post-trial */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>Trials &amp; beyond</span>
+          {POST_TRIAL_FILTERS.map(f => (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.INK : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.MUTED, border: `1px solid ${statusFilter === f.key ? C.INK : C.BORDER}` }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
       {isAdmin && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
             <button key={s} onClick={() => setSiteFilter(s)}
               style={{
@@ -549,6 +438,22 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           ))}
         </div>
       )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12, color: C.MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>Date received:</label>
+        <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+          style={{ padding: '5px 10px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer' }}>
+          {DATE_FILTERS.map(f => <option key={f} value={f}>{DATE_FILTER_LABELS[f]}</option>)}
+        </select>
+        {dateFilter === 'custom' && (
+          <>
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+            <span style={{ fontSize: 12, color: C.MUTED }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+          </>
+        )}
+      </div>
 
       {/* Lead rows */}
       {filtered.length === 0 && (
@@ -579,25 +484,38 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
                 {lead.trial_at && <span style={{ marginLeft: 10 }}>Trial: {fmtDateTime(lead.trial_at)}</span>}
               </div>
             </div>
-            {isAdmin && (
-              <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap' }}>
-                {lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap', textAlign: 'right', lineHeight: 1.6 }}>
+              {isAdmin && <div>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</div>}
+              <div>{new Date(lead.received_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Australia/Melbourne' })}</div>
+            </div>
           </div>
         )
       })}
 
       {/* Profile panel */}
-      {selectedLead && (
-        <ProfilePanel
-          lead={selectedLead}
-          guardian={guardianMap[selectedLead.guardian_id]}
-          siblings={siblings}
-          activities={activities}
-          programmes={programmes}
+      {selectedId && (() => {
+        const sel = leadsWithGuardians.find(l => l.id === selectedId)
+        if (!sel) return null
+        return (
+          <ProfilePanel
+            lead={sel}
+            allLeads={leadsWithGuardians}
+            userId={user.id}
+            userRole={user.role}
+            programmes={programmes}
+            activities={activities}
+            userNames={userNames}
+            onClose={() => setSelectedId(null)}
+            onSwitchLead={(id) => setSelectedId(id)}
+          />
+        )
+      })()}
+
+      {showAddModal && (
+        <AddLeadModal
           user={user}
-          onClose={() => setSelectedId(null)}
+          programmes={programmes}
+          onClose={() => setShowAddModal(false)}
         />
       )}
     </div>

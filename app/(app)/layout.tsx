@@ -25,7 +25,6 @@ export default async function AppLayout({
     .single<AppUser>()
 
   if (!appUser) {
-    // Auth user exists but no app_users row — avoid redirect loop
     redirect('/login?error=no_profile')
   }
 

@@ -30,6 +30,7 @@ export interface Guardian {
   phone: string
   email: string | null
   preferred_contact: string | null
+  secondary_contact_note: string | null
   created_at: string
   archived_at: string | null
   archived_by: string | null
@@ -58,6 +59,7 @@ export interface Lead {
   trial_at: string | null     // ISO timestamptz
   confirmation_sent_at: string | null
   form_received: boolean
+  form_sent_at: string | null   // when Jotform was first sent
   next_action_at: string | null
   first_class_date: string | null
   first_class: string | null

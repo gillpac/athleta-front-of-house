@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import StatsClient from './StatsClient'
 import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteSettings } from '@/types'
 
-export default async function StatsPage() {
+export default async function StatsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const supabase = await createClient()
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) redirect('/login')
@@ -11,13 +11,14 @@ export default async function StatsPage() {
   const { data: appUser } = await supabase.from('app_users').select('*').eq('id', authUser.id).single<AppUser>()
   if (!appUser) redirect('/login?error=no_profile')
 
-  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
-  const siteFilter = isAdmin ? null : appUser.site
+  const siteFilter = appUser.site ?? null
 
-  const now = new Date()
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-  const todayStr = now.toISOString().split('T')[0]
+  const params = await searchParams
+  const todayStr = new Date().toISOString().split('T')[0]
+  const requestedMonth = params.month && /^\d{4}-\d{2}-01$/.test(params.month) ? params.month : null
+  const monthDate = requestedMonth ? new Date(requestedMonth + 'T12:00:00') : new Date()
+  const monthStart = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-01`
+  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toISOString().split('T')[0]
 
   // Leads this month
   let leadsQ = supabase.from('leads').select('id, status, source, utm_source, utm_medium, utm_campaign, sold_at, sold_by, verified_at, payment_taken, received_at, contacted, attempts, site')
@@ -45,7 +46,7 @@ export default async function StatsPage() {
 
   // All time leads for source breakdown (last 90 days)
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-  let sourceQ = supabase.from('leads').select('source, utm_source, utm_medium, utm_campaign, received_at').gte('received_at', ninetyDaysAgo).is('archived_at', null)
+  let sourceQ = supabase.from('leads').select('source, utm_source, utm_medium, utm_campaign, received_at, site').gte('received_at', ninetyDaysAgo).is('archived_at', null)
   if (siteFilter) sourceQ = sourceQ.eq('site', siteFilter)
   const { data: sourceLeads } = await sourceQ
 

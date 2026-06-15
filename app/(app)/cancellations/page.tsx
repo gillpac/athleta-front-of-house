@@ -11,8 +11,7 @@ export default async function CancellationsPage() {
   const { data: appUser } = await supabase.from('app_users').select('*').eq('id', authUser.id).single<AppUser>()
   if (!appUser) redirect('/login?error=no_profile')
 
-  const isAdmin = appUser.role === 'admin' || appUser.role === 'management'
-  const siteFilter = isAdmin ? null : appUser.site
+  const siteFilter = appUser.site ?? null
 
   let q = supabase
     .from('cancellations')
