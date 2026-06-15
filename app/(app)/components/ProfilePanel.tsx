@@ -182,7 +182,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>When to follow up?</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
           {([['1 hour', 'h1'], ['2 hours', 'h2']] as [string, string][]).map(([label, key]) => {
-            const iso = (() => { const d = new Date(); d.setHours(d.getHours() + (key === 'h1' ? 1 : 2), 0, 0, 0); return d.toISOString() })()
+            const iso = new Date(Date.now() + (key === 'h1' ? 1 : 2) * 3600000).toISOString()
             return (
               <button key={key} onClick={() => { setSelected(iso); setShowCustom(false) }} style={tileStyle(selected === iso, C.orange)}>
                 {label}
