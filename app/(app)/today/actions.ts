@@ -127,6 +127,23 @@ export async function markLost(leadId: string, reason: string, userId: string) {
   revalidatePath('/leads')
 }
 
+export async function markUnreachable(leadId: string, userId: string) {
+  const supabase = await createClient()
+  const { data: before } = await supabase.from('leads').select('*').eq('id', leadId).single()
+  const attempts = before?.attempts ?? 0
+  const reason = `Unreachable after ${attempts} attempts`
+  await supabase.from('leads').update({
+    status: 'lost',
+    lost_reason: reason,
+    next_action_at: null,
+    prev_state: { status: before?.status, trial_at: before?.trial_at },
+  }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'status', `Marked unreachable — no contact after ${attempts} attempts`)
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_unreachable', before, after: { status: 'lost', reason } })
+  revalidatePath('/today')
+  revalidatePath('/leads')
+}
+
 
 export async function sendConfirmation(leadId: string, userId: string) {
   const supabase = await createClient()

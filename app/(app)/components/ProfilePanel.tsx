@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import type { Lead, Guardian, Programme } from '@/types'
 import {
-  logCallOutcome, bookTrial, makeSale, markDidntEnrol, markLost, markNoShow,
+  logCallOutcome, bookTrial, makeSale, markDidntEnrol, markLost, markNoShow, markUnreachable,
   sendConfirmation, verifySale, logNote, logText, logEmail,
   resendForm, markFormReceived, sendJotform, getJotformLink, updateLeadProfile, archiveLeadWithReason,
 } from '../today/actions'
@@ -641,17 +641,20 @@ export function ProfilePanel({
 
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
-              <Next onClick={() => setCallOpen(!callOpen)}>📞 Call</Next>
-              <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg('') }}>💬 Log text</Quiet>
-              <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg('') }}>✉ Log email</Quiet>
+              <Next onClick={() => { setCallOpen(v => !v); setTextMsgOpen(false); setEmailMsgOpen(false); setLossOpen(false) }}>📞 Call</Next>
+              <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg(''); setEmailMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>💬 Log text</Quiet>
+              <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg(''); setTextMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>✉ Log email</Quiet>
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
+              {(lead.status === 'new' || lead.status === 'noshow') && lead.attempts >= 10 && (
+                <Quiet onClick={() => { if (window.confirm(`Mark unreachable after ${lead.attempts} attempts? This closes the lead.`)) startTransition(() => markUnreachable(lead.id, userId)) }}>Unreachable</Quiet>
+              )}
               {lead.status === 'booked' && <Quiet onClick={() => setBookingOpen(true)}>Edit trial</Quiet>}
               {(lead.status === 'booked' || lead.status === 'nurture') && <Sale onClick={() => setEnrolOpen(true)}>💰 Make the sale</Sale>}
               {lead.status === 'booked' && (
                 <Quiet onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>{lead.confirmation_sent_at ? 'Resend confirmation' : 'Send confirmation'}</Quiet>
               )}
               {lead.status === 'booked' && (
-                <Quiet onClick={() => setLossOpen(v => !v)}>Didn&apos;t enrol</Quiet>
+                <Quiet onClick={() => { setLossOpen(v => !v); setCallOpen(false); setTextMsgOpen(false); setEmailMsgOpen(false) }}>Didn&apos;t enrol</Quiet>
               )}
               {lead.status === 'booked' && (
                 <Quiet onClick={() => { if (window.confirm('Mark as no-show?')) startTransition(() => markNoShow(lead.id, userId)) }}>No-show</Quiet>
