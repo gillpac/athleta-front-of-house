@@ -242,7 +242,7 @@ function ChecklistRow({ item, userId }: { item: ChecklistItem; userId: string })
 
   function save() {
     startTransition(async () => {
-      await upsertChecklistItem(item.id, label.trim(), site || null, role as UserRole | null, parseInt(sort) || 0, userId)
+      await upsertChecklistItem(item.id, label.trim(), site || null, role || null, parseInt(sort) || 0, userId)
       setEditing(false)
     })
   }
@@ -304,7 +304,7 @@ function ChecklistSection({ items, userId }: { items: ChecklistItem[]; userId: s
   function create() {
     if (!label.trim()) return
     startTransition(async () => {
-      await upsertChecklistItem(null, label.trim(), site || null, role as UserRole | null, maxSort + 10, userId)
+      await upsertChecklistItem(null, label.trim(), site || null, role || null, maxSort + 10, userId)
       setLabel(''); setSite(''); setRole(''); setShowNew(false)
     })
   }
