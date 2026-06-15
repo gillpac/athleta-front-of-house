@@ -17,12 +17,15 @@ export default async function TodayPage() {
 
   if (!appUser) redirect('/login?error=no_profile')
 
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  // Use Melbourne local date (not the server's UTC date) so "today" matches
+  // what reception sees on the clock. en-CA formats as YYYY-MM-DD.
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' })
+  const [yr, mo] = todayStr.split('-').map(Number)
 
-  // First day of current month
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
+  // First and last day of current month (Melbourne)
+  const firstOfMonth = `${todayStr.slice(0, 7)}-01`
+  const lastDay = new Date(yr, mo, 0).getDate()
+  const endOfMonth = `${todayStr.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`
 
   // Site filter — receptionist/site_lead are locked to their site; admin/management see all
   const siteFilter = appUser.site ?? null
