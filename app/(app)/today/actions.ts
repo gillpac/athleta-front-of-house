@@ -251,6 +251,29 @@ export async function sendJotform(leadId: string, userId: string) {
 }
 
 export async function resendForm(leadId: string, userId: string) {
+  const admin = createAdminClient()
+  const { data: lead } = await admin
+    .from('leads')
+    .select('*, guardian:guardians(*)')
+    .eq('id', leadId)
+    .single()
+
+  if (lead) {
+    const guardian = lead.guardian as Record<string, string> | null
+    const jotformUrl = buildJotformUrl(lead.site, lead, guardian)
+    if (jotformUrl) {
+      const guardianFirstName = guardian?.first_name ?? 'there'
+      const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0 0 20px 0;font-size:14px;">Hi ${guardianFirstName},<br><br>Just a reminder to complete the enrolment form for <strong>${lead.child_first}</strong> before the trial. It covers medical and emergency details and must be completed prior to attending.<br><br>👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
+      await postToZapier({
+        to: guardian?.email ?? null,
+        subject: `Reminder: Enrolment form — ${lead.child_first} at Athleta Gymnastics`,
+        html_body: htmlBody,
+        site: lead.site,
+        kind: 'jotform',
+      })
+    }
+  }
+
   await insertActivity(leadId, userId, 'comm', 'Jotform re-sent to parent')
   revalidatePath('/today')
   revalidatePath('/leads')
