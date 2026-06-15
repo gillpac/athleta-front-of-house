@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server-admin'
 import { logAudit } from '@/lib/audit'
+import { buildSig, postToZapier } from '@/lib/email-helpers'
 
 function revalidate() {
   revalidatePath('/leads')
@@ -96,48 +97,43 @@ export async function sendConfirmation(leadId: string, userId: string) {
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  if (process.env.ZAPIER_EMAIL_WEBHOOK_URL) {
-    const { data: lead } = await admin
-      .from('leads')
-      .select('*, guardian:guardians(*), programme:programmes(name)')
-      .eq('id', leadId)
-      .single()
+  const { data: lead } = await admin
+    .from('leads')
+    .select('*, guardian:guardians(*), programme:programmes(name)')
+    .eq('id', leadId)
+    .single()
 
-    if (lead) {
-      const guardian = lead.guardian as Record<string, string> | null
-      const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
-      const trialDate = lead.trial_at
-        ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
-        : 'TBC'
-      const guardianFirstName = guardian?.first_name ?? 'there'
-      const sig = lead.site === 'altona_north'
-        ? `<p style="color:#555;font-size:13px;margin-top:24px;"><strong>Athleta Gymnastics — Altona North</strong><br>📞 (03) 9999 0002<br>🌐 www.athletagymnastics.com.au</p>`
-        : `<p style="color:#555;font-size:13px;margin-top:24px;"><strong>Athleta Gymnastics — Coolaroo</strong><br>📞 (03) 9999 0001<br>🌐 www.athletagymnastics.com.au</p>`
-      const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early. Wear comfortable clothing and bare feet for gymnastics.</p><p>See you soon!</p>${sig}`
+  if (lead) {
+    const guardian = lead.guardian as Record<string, string> | null
+    const programmeName = (lead.programme as Record<string, string> | null)?.name ?? ''
+    const trialDate = lead.trial_at
+      ? new Date(lead.trial_at).toLocaleString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
+      : 'TBC'
+    const guardianFirstName = guardian?.first_name ?? 'there'
+    const jotformUrl = process.env.JOTFORM_URL
+    const jotformLine = jotformUrl
+      ? `<p>📋 <strong>Before your trial</strong>, please complete our short enrolment form — it only takes a few minutes and helps us look after ${lead.child_first} safely:<br><a href="${jotformUrl}" style="color:#E26839;">${jotformUrl}</a></p>`
+      : ''
+    const htmlBody = `<p>Hi ${guardianFirstName},</p><p>Thanks for booking a trial for <strong>${lead.child_first}</strong>! We're looking forward to meeting you.</p><p><strong>Trial details:</strong><br>📅 ${trialDate}<br>🤸 Programme: ${programmeName || 'To be confirmed'}</p><p>Please arrive 5 minutes early and wear comfortable clothing — bare feet for gymnastics.</p>${jotformLine}<p>See you soon!</p>${buildSig(lead.site)}`
 
-      await fetch(process.env.ZAPIER_EMAIL_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: guardian?.email ?? null,
-          subject: `Your trial booking — ${lead.child_first} at Athleta Gymnastics`,
-          html_body: htmlBody,
-          site: lead.site,
-          guardian_email: guardian?.email,
-          child_name: `${lead.child_first} ${lead.child_last}`,
-          trial_date: trialDate,
-          programme: programmeName,
-          kind: 'confirmation',
-        }),
-      }).catch(() => null)
-    }
+    await postToZapier({
+      to: guardian?.email ?? null,
+      subject: `Your trial booking — ${lead.child_first} at Athleta Gymnastics`,
+      html_body: htmlBody,
+      site: lead.site,
+      kind: 'confirmation',
+    })
   }
 
-  const before = await getLead(supabase, leadId)
-  const updates = { confirmation_sent_at: new Date().toISOString() }
+  const now = new Date().toISOString()
+  const updates: Record<string, unknown> = { confirmation_sent_at: now }
+  if (process.env.JOTFORM_URL) updates.form_sent_at = now
   await supabase.from('leads').update(updates).eq('id', leadId)
-  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'comm', body: 'Confirmation email sent' })
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'send_confirmation', before, after: { ...before, ...updates } })
+  const activityMsg = process.env.JOTFORM_URL
+    ? 'Confirmation email sent (Jotform link included)'
+    : 'Confirmation email sent'
+  await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'comm', body: activityMsg })
+  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'send_confirmation' })
   revalidate()
 }
 
