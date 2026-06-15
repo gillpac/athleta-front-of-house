@@ -64,15 +64,16 @@ function Ghost({ children, onClick, color = C.MUTED }: { children: React.ReactNo
 
 // ── Blockout Days ─────────────────────────────────────────────────────────────
 function BlockoutSection({ days, userId }: { days: BlockoutDay[]; userId: string }) {
-  const [site, setSite] = useState<SiteT>('coolaroo')
+  const [siteChoice, setSiteChoice] = useState<'all' | SiteT>('all')
   const [day, setDay] = useState('')
   const [label, setLabel] = useState('')
   const [pending, startTransition] = useTransition()
 
   function add() {
     if (!day || !label.trim()) return
+    const sites: SiteT[] = siteChoice === 'all' ? ['coolaroo', 'altona_north'] : [siteChoice]
     startTransition(async () => {
-      await addBlockoutDay(site, day, label.trim(), userId)
+      await addBlockoutDay(sites, day, label.trim(), userId)
       setDay(''); setLabel('')
     })
   }
@@ -90,9 +91,10 @@ function BlockoutSection({ days, userId }: { days: BlockoutDay[]; userId: string
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <div style={{ fontSize: 11, color: C.MUTED, marginBottom: 3 }}>SITE</div>
-          <select value={site} onChange={e => setSite(e.target.value as SiteT)} style={{ ...inp }}>
-            <option value="coolaroo">Coolaroo</option>
-            <option value="altona_north">Altona North</option>
+          <select value={siteChoice} onChange={e => setSiteChoice(e.target.value as 'all' | SiteT)} style={{ ...inp }}>
+            <option value="all">All sites</option>
+            <option value="coolaroo">Coolaroo only</option>
+            <option value="altona_north">Altona North only</option>
           </select>
         </div>
         <div>
