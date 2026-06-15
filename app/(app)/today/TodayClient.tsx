@@ -198,8 +198,8 @@ function Panel({ children, head, badge, sub, style }: {
 }
 
 // ─── WhoCell ──────────────────────────────────────────────────────────────────
-function WhoCell({ lead, onOpen, onOpenParent }: {
-  lead: Lead & { guardians: Guardian }; onOpen: () => void; onOpenParent: () => void
+function WhoCell({ lead, onOpen, onOpenParent, showSite }: {
+  lead: Lead & { guardians: Guardian }; onOpen: () => void; onOpenParent: () => void; showSite?: boolean
 }) {
   const age = ageFrom(lead.dob)
   const rel = lead.relationship ?? 'parent'
@@ -216,6 +216,7 @@ function WhoCell({ lead, onOpen, onOpenParent }: {
           }}
         >{lead.child_first} {lead.child_last}</button>
         {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 11.5 }}>{age} yrs</span>}
+        {showSite && <Tag tone={lead.site === 'coolaroo' ? 'green' : 'yellow'}>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Tag>}
         {lead.rebooks > 0 && <Tag tone="yellow">re-booked ×{lead.rebooks}</Tag>}
       </div>
       <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 400, marginTop: 1 }}>
@@ -601,13 +602,14 @@ function ParentProfile({ guardianId, allLeads, onClose, onOpenChild }: {
 }
 
 // ─── New lead row ─────────────────────────────────────────────────────────────
-function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes }: {
+function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   onOpen: () => void
   onOpenParent: () => void
   onBooked: () => void
   programmes: Programme[]
+  showSite?: boolean
 }) {
   const [callFor, setCallFor] = useState(false)
   const [bookingOpen, setBookingOpen] = useState(false)
@@ -639,7 +641,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes }: {
           </div>
         </div>
         <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
           <div style={{ marginTop: 3, display: 'flex', gap: 5 }}>
             {!lead.contacted
               ? <Tag tone="red" solid>not contacted yet</Tag>
@@ -697,13 +699,14 @@ function BookingModalWrapper({ lead, userId, onClose, onDone, programmes: progs 
 }
 
 // ─── Today trial row ──────────────────────────────────────────────────────────
-function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent }: {
+function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
   programmes: Programme[]
   onOpen: () => void
   onOpenParent: () => void
+  showSite?: boolean
 }) {
   const leadActs = activities.filter(a => a.lead_id === lead.id)
   const hasArrived = leadActs.some(a => a.body === 'Marked arrived ✓') &&
@@ -729,7 +732,7 @@ function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent }
       <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 180px 230px', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
         <div style={{ fontWeight: 900, fontSize: 14 }}>{timeStr}</div>
         <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
           {lead.programme_id && programmes.find(p => p.id === lead.programme_id) && (
             <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>
               {programmes.find(p => p.id === lead.programme_id)!.name}
@@ -800,12 +803,13 @@ function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent }
 }
 
 // ─── No-show row ──────────────────────────────────────────────────────────────
-function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
+function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   programmes: Programme[]
   onOpen: () => void
   onOpenParent: () => void
+  showSite?: boolean
 }) {
   const [bookingOpen, setBookingOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -814,7 +818,7 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
         <div>
-          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+          <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
           <div style={{ marginTop: 3 }}><Tag tone="red">no-show — reach out &amp; re-book</Tag></div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -836,12 +840,13 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
 }
 
 // ─── Tomorrow row ─────────────────────────────────────────────────────────────
-function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
+function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   programmes: Programme[]
   onOpen: () => void
   onOpenParent: () => void
+  showSite?: boolean
 }) {
   const [pending, startTransition] = useTransition()
   const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
@@ -851,7 +856,7 @@ function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
     <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, opacity: pending ? 0.6 : 1 }}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>{timeStr}</div>
       <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
         {progName && <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>{progName}</div>}
         <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
           {lead.form_received
@@ -874,12 +879,13 @@ function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent }: {
 }
 
 // ─── Sale row ─────────────────────────────────────────────────────────────────
-function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
+function SaleRow({ lead, userId, userRole, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   userRole: string
   onOpen: () => void
   onOpenParent: () => void
+  showSite?: boolean
 }) {
   const [iclassChecks, setIclassChecks] = useState({ classEnrolled: false, regoIns: false, payment: false })
   const [pending, startTransition] = useTransition()
@@ -889,7 +895,7 @@ function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
   return (
     <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.lineSoft}`, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', opacity: pending ? 0.6 : 1 }}>
       <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
         {lead.first_class_date && lead.first_class && (
           <div style={{ fontSize: 11.5, fontWeight: 800, color: C.green, marginTop: 2 }}>
             first class {lead.first_class_date} · {lead.first_class}
@@ -923,12 +929,13 @@ function SaleRow({ lead, userId, userRole, onOpen, onOpenParent }: {
 }
 
 // ─── Booked row (future trials — not today) ───────────────────────────────────
-function BookedRow({ lead, userId, programmes, onOpen, onOpenParent }: {
+function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   programmes: Programme[]
   onOpen: () => void
   onOpenParent: () => void
+  showSite?: boolean
 }) {
   const [pending, startTransition] = useTransition()
   const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
@@ -944,7 +951,7 @@ function BookedRow({ lead, userId, programmes, onOpen, onOpenParent }: {
         <div style={{ fontWeight: 400, fontSize: 11.5, color: C.muted }}>{timeStr}</div>
       </div>
       <div>
-        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} />
+        <WhoCell lead={lead} onOpen={onOpen} onOpenParent={onOpenParent} showSite={showSite} />
         {progName && <div style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginTop: 1 }}>{progName}</div>}
         <div style={{ marginTop: 3, display: 'flex', gap: 5, alignItems: 'center' }}>
           {lead.form_received
@@ -1057,10 +1064,14 @@ export default function TodayClient({
 }: TodayClientProps) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [openParentGuardianId, setOpenParentGuardianId] = useState<string | null>(null)
-  const [trialTab, setTrialTab] = useState<'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month' | 'custom'>('today')
+  const [trialTab, setTrialTab] = useState<'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month' | 'noshows' | 'custom'>('today')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [siteFilter, setSiteFilter] = useState<'all' | 'coolaroo' | 'altona_north'>('all')
   const [pending, startTransition] = useTransition()
+
+  const isMultiSite = appUser.role === 'admin' || appUser.role === 'management'
+  const matchesSite = (l: Lead) => siteFilter === 'all' || l.site === siteFilter
 
   // Compute tab date boundaries from todayStr
   const tomorrowStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
@@ -1073,13 +1084,16 @@ export default function TodayClient({
   const firstOfMonthStr = todayStr.slice(0, 8) + '01'
   const endOfMonthStr = (() => { const d = new Date(todayStr.slice(0, 7) + '-01T12:00:00'); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10) })()
 
+  const booked = bookedLeads.filter(matchesSite)
+  const noShowsFiltered = noShows.filter(matchesSite)
   const trialsByTab = {
-    today: bookedLeads.filter(l => l.trial_at?.startsWith(todayStr)),
-    tomorrow: bookedLeads.filter(l => l.trial_at?.startsWith(tomorrowStr)),
-    this_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= dayAfterTomStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
-    next_week: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
-    this_month: bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= firstOfMonthStr && l.trial_at.slice(0, 10) <= endOfMonthStr),
-    custom: bookedLeads.filter(l => {
+    today: booked.filter(l => l.trial_at?.startsWith(todayStr)),
+    tomorrow: booked.filter(l => l.trial_at?.startsWith(tomorrowStr)),
+    this_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= dayAfterTomStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
+    next_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
+    this_month: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= firstOfMonthStr && l.trial_at.slice(0, 10) <= endOfMonthStr),
+    noshows: noShowsFiltered,
+    custom: booked.filter(l => {
       if (!l.trial_at) return false
       const d = l.trial_at.slice(0, 10)
       if (customFrom && d < customFrom) return false
@@ -1178,6 +1192,7 @@ export default function TodayClient({
             lead={l}
             userId={appUser.id}
             programmes={programmes}
+            showSite={isMultiSite}
             onOpen={() => setOpenLeadId(l.id)}
             onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
             onBooked={() => {/* revalidation happens via server action */ }}
@@ -1198,6 +1213,7 @@ export default function TodayClient({
             ['this_week', 'This week', trialsByTab.this_week.length],
             ['next_week', 'Next week', trialsByTab.next_week.length],
             ['this_month', 'This month', trialsByTab.this_month.length],
+            ['noshows', 'No-shows', trialsByTab.noshows.length],
             ['custom', 'Custom…', trialsByTab.custom.length],
           ] as [string, string, number][]).map(([key, label, count]) => (
             <button key={key} onClick={() => setTrialTab(key as typeof trialTab)}
@@ -1211,6 +1227,24 @@ export default function TodayClient({
             </button>
           ))}
         </div>
+
+        {/* Site filter (admin/management only) */}
+        {isMultiSite && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Site:</span>
+            {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
+              <button key={s} onClick={() => setSiteFilter(s)}
+                style={{
+                  fontFamily: FONT, fontWeight: 700, fontSize: 11.5, cursor: 'pointer',
+                  padding: '4px 10px', borderRadius: 4,
+                  background: siteFilter === s ? C.ink : '#fff', color: siteFilter === s ? '#fff' : C.ink,
+                  border: `1px solid ${siteFilter === s ? C.ink : C.line}`,
+                }}>
+                {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Custom date pickers */}
         {trialTab === 'custom' && (
@@ -1233,24 +1267,31 @@ export default function TodayClient({
                 <span style={{ fontSize: 10, fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>② Outcome</span>
               </div>
             )}
-            {trialsByTab.today.length === 0 && noShows.length === 0 && (
+            {trialsByTab.today.length === 0 && (
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials today.</div>
             )}
             {trialsByTab.today.map(l => (
-              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities} programmes={programmes}
+              <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities} programmes={programmes} showSite={isMultiSite}
                 onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
             ))}
-            {noShows.length > 0 && (
-              <>
-                <div style={{ padding: '5px 12px', background: '#FCFAF7', borderTop: `1px solid ${C.lineSoft}` }}>
-                  <span style={{ fontSize: 10, fontWeight: 900, color: C.red, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — contact &amp; re-book</span>
-                </div>
-                {noShows.map(l => (
-                  <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
-                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-                ))}
-              </>
+          </>
+        )}
+
+        {/* No-shows tab */}
+        {trialTab === 'noshows' && (
+          <>
+            {trialsByTab.noshows.length > 0 && (
+              <div style={{ padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: C.red, textTransform: 'uppercase', letterSpacing: 0.8 }}>No-shows — contact &amp; re-book</span>
+              </div>
             )}
+            {trialsByTab.noshows.length === 0 && (
+              <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No no-shows.</div>
+            )}
+            {trialsByTab.noshows.map(l => (
+              <NoShowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+            ))}
           </>
         )}
 
@@ -1268,14 +1309,14 @@ export default function TodayClient({
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials tomorrow.</div>
             )}
             {trialsByTab.tomorrow.map(l => (
-              <TomorrowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+              <TomorrowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
                 onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
             ))}
           </>
         )}
 
         {/* Other tabs: booked row with date + status */}
-        {trialTab !== 'today' && trialTab !== 'tomorrow' && (
+        {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
           <>
             {trialsByTab[trialTab].length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 10, padding: '5px 12px', background: '#FCFAF7', borderBottom: `1px solid ${C.lineSoft}` }}>
@@ -1288,7 +1329,7 @@ export default function TodayClient({
               <div style={{ padding: '14px 16px', fontSize: 13, color: C.muted, fontWeight: 700 }}>No trials in this period.</div>
             )}
             {trialsByTab[trialTab].map(l => (
-              <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+              <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
                 onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
             ))}
           </>
@@ -1308,6 +1349,7 @@ export default function TodayClient({
               lead={l}
               userId={appUser.id}
               userRole={appUser.role}
+              showSite={isMultiSite}
               onOpen={() => setOpenLeadId(l.id)}
               onOpenParent={() => setOpenParentGuardianId(l.guardians.id)}
             />
