@@ -129,17 +129,21 @@ export async function markLost(leadId: string, reason: string, userId: string) {
 
 
 export async function sendConfirmation(leadId: string, userId: string) {
+  console.log('[sendConfirmation] start', { leadId, userId })
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const { data: lead } = await admin
+  const { data: lead, error: leadError } = await admin
     .from('leads')
     .select('*, guardian:guardians(*)')
     .eq('id', leadId)
     .single()
 
+  console.log('[sendConfirmation] lead fetch', { found: !!lead, error: leadError?.message })
+
   if (lead) {
     const guardian = lead.guardian as Record<string, string> | null
+    console.log('[sendConfirmation] guardian email', guardian?.email, 'zapier url set', !!process.env.ZAPIER_EMAIL_WEBHOOK_URL)
     const trialDateStr = lead.trial_at
       ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
       : 'TBC'
