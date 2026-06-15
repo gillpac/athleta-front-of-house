@@ -221,9 +221,19 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
     })
   }
 
-  const enquiryFields = lead.enquiry_raw
-    ? Object.entries(lead.enquiry_raw).filter(([, v]) => v !== null && v !== '' && v !== undefined)
+  // Fields already shown in structured sections — exclude from the extra info dump
+  const KNOWN_FIELDS = new Set([
+    'site', 'phone', 'email', 'parent_first', 'parent_last', 'preferred_contact', 'relationship',
+    'source', 'referrer_name', 'utm_source', 'utm_medium', 'utm_campaign',
+    'child_first_1', 'child_last_1', 'dob_1', 'gender_1', 'programme_name_1', 'interest_1',
+    'child_first_2', 'child_last_2', 'dob_2', 'gender_2', 'programme_name_2', 'interest_2',
+    'child_first_3', 'child_last_3', 'dob_3', 'gender_3', 'programme_name_3', 'interest_3',
+    'child_first_4', 'child_last_4', 'dob_4', 'gender_4', 'programme_name_4', 'interest_4',
+  ])
+  const extraFields = lead.enquiry_raw
+    ? Object.entries(lead.enquiry_raw).filter(([k, v]) => !KNOWN_FIELDS.has(k) && v !== null && v !== '' && v !== undefined)
     : []
+  const utmCampaign = lead.enquiry_raw?.utm_campaign as string | undefined
 
   return (
     <>
@@ -308,8 +318,9 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
           <Section title="Child">
             <Row label="Date of birth" value={lead.dob ? `${fmtDate(lead.dob)} (${age(lead.dob)})` : '—'} />
             <Row label="Gender" value={lead.gender ?? '—'} />
-            <Row label="Source" value={lead.source} />
+            <Row label="Source" value={lead.source ?? '—'} />
             {lead.referrer_name && <Row label="Referred by" value={lead.referrer_name} />}
+            {utmCampaign && <Row label="Campaign" value={utmCampaign} />}
             <Row label="Jotform received" value={lead.form_received ? '✓ Yes' : '✗ No'} valueColor={lead.form_received ? C.GREEN : C.RED} />
           </Section>
 
@@ -359,10 +370,10 @@ function ProfilePanel({ lead, guardian, siblings, activities, programmes, user, 
             </Section>
           )}
 
-          {/* Enquiry */}
-          {enquiryFields.length > 0 && (
-            <Section title="Enquiry details">
-              {enquiryFields.map(([k, v]) => (
+          {/* Extra fields from enquiry not already shown above */}
+          {extraFields.length > 0 && (
+            <Section title="Additional info">
+              {extraFields.map(([k, v]) => (
                 <Row key={k} label={k.replace(/_/g, ' ')} value={String(v)} />
               ))}
             </Section>
