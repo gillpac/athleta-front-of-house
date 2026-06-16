@@ -120,14 +120,14 @@ export default function CancelPage() {
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px', color: C.head, letterSpacing: '-0.3px' }}>Cancellation Notice</h1>
           <p style={{ fontSize: 13.5, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-            Please complete this form to begin the cancellation process. The standard notice period is 2 weeks.
+            Please complete this form to begin the cancellation process.<br />The standard notice period is 2 weeks.
           </p>
         </div>
 
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: RADIUS, padding: '28px 26px' }}>
           <form onSubmit={submit}>
             {/* Site */}
-            <Field label="Gym location" required>
+            <Field label="Location" required>
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['coolaroo', 'altona_north'] as const).map(s => (
                   <button key={s} type="button" onClick={() => setSite(s)}
@@ -244,9 +244,6 @@ export default function CancelPage() {
           </form>
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: 12, color: C.faint, marginTop: 18 }}>
-          Questions? Call us during business hours.
-        </div>
       </div>
     </div>
   )
