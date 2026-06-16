@@ -6,15 +6,21 @@ import type { AppUser, Lead, Target, BlockoutDay, Cancellation, SiteT, SiteSetti
 import { upsertTarget, updateSiteMembers, fetchTargetsForMonth } from './actions'
 
 const C = {
-  SAND: '#F6F3EE',
-  WHITE: '#FFFFFF',
-  INK: '#17130E',
-  MUTED: '#84776A',
-  BORDER: '#D9CFC2',
+  WHITE: '#ffffff',
+  INK: '#23201d',
+  HEAD: '#14110d',
+  BODY: '#4a453f',
+  MUTED: '#5f5851',
+  FAINT: '#877f75',
+  BORDER: '#efeae3',
+  LINE2: '#e6e0d8',
+  SOFT: '#faf8f6',
   ORANGE: '#E26839',
-  GREEN: '#3A7D44',
-  RED: '#C0392B',
+  GREEN: '#3f8f5e',
+  RED: '#bf4a30',
+  SAND: '#f6f4f1',
 }
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -50,7 +56,7 @@ function calcOpDaysLeft(todayStr: string, blockoutDays: BlockoutDay[]): { elapse
 function Bar({ value, max, color = C.ORANGE }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
   return (
-    <div style={{ background: '#E5E7EB', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 6 }}>
+    <div style={{ background: '#f0ebe4', height: 7, borderRadius: 4, overflow: 'hidden', marginTop: 6 }}>
       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.3s' }} />
     </div>
   )
@@ -58,9 +64,9 @@ function Bar({ value, max, color = C.ORANGE }: { value: number; max: number; col
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
   return (
-    <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}`, padding: '16px 20px', flex: 1, minWidth: 120 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: accent ?? C.INK, lineHeight: 1 }}>{value}</div>
+    <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}`, borderRadius: 8, padding: '16px 20px', flex: 1, minWidth: 120, fontFamily: FONT }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.FAINT, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: accent ?? C.HEAD, lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: C.MUTED, marginTop: 4 }}>{sub}</div>}
     </div>
   )
@@ -68,8 +74,8 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>{title}</div>
+    <div style={{ marginBottom: 28, fontFamily: FONT }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.FAINT, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>{title}</div>
       {children}
     </div>
   )

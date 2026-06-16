@@ -10,14 +10,25 @@ import {
 } from './actions'
 
 const C = {
-  WHITE: '#FFFFFF', INK: '#17130E', MUTED: '#84776A',
-  BORDER: '#D9CFC2', ORANGE: '#E26839', GREEN: '#3A7D44',
-  RED: '#C0392B', SAND: '#F6F3EE',
+  WHITE: '#ffffff',
+  INK: '#23201d',
+  HEAD: '#14110d',
+  BODY: '#4a453f',
+  MUTED: '#5f5851',
+  FAINT: '#877f75',
+  BORDER: '#efeae3',
+  LINE2: '#e6e0d8',
+  SOFT: '#faf8f6',
+  ORANGE: '#E26839',
+  GREEN: '#3f8f5e',
+  RED: '#bf4a30',
+  SAND: '#f6f4f1',
 }
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 
 const inp: React.CSSProperties = {
-  padding: '8px 10px', border: `1px solid ${C.BORDER}`, fontSize: 13,
-  background: C.WHITE, fontFamily: 'inherit', boxSizing: 'border-box' as const,
+  padding: '8px 10px', border: `1px solid ${C.LINE2}`, fontSize: 13, borderRadius: 6,
+  background: C.WHITE, fontFamily: FONT, boxSizing: 'border-box' as const,
 }
 
 const ROLES: UserRole[] = ['receptionist', 'site_lead', 'admin', 'management']
@@ -35,8 +46,8 @@ const SITES: { value: SiteT | ''; label: string }[] = [
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 36 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: C.INK, marginBottom: 14, paddingBottom: 8, borderBottom: `2px solid ${C.BORDER}` }}>
+    <div style={{ marginBottom: 36, fontFamily: FONT }}>
+      <div style={{ fontSize: 15.5, fontWeight: 800, color: C.HEAD, marginBottom: 14, paddingBottom: 10, borderBottom: `1px solid ${C.BORDER}`, letterSpacing: '-0.2px' }}>
         {title}
       </div>
       {children}
@@ -47,8 +58,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Btn({ children, onClick, color = C.ORANGE, disabled }: { children: React.ReactNode; onClick?: () => void; color?: string; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
-      background: color, color: C.WHITE, border: 'none', opacity: disabled ? 0.5 : 1,
+      fontFamily: FONT, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
+      background: color, color: C.WHITE, border: 'none', borderRadius: 7, opacity: disabled ? 0.5 : 1,
     }}>{children}</button>
   )
 }
@@ -56,8 +67,8 @@ function Btn({ children, onClick, color = C.ORANGE, disabled }: { children: Reac
 function Ghost({ children, onClick, color = C.MUTED }: { children: React.ReactNode; onClick?: () => void; color?: string }) {
   return (
     <button onClick={onClick} style={{
-      padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-      background: C.WHITE, color, border: `1px solid ${C.BORDER}`,
+      fontFamily: FONT, padding: '6px 12px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+      background: C.WHITE, color, border: `1px solid ${C.LINE2}`, borderRadius: 7,
     }}>{children}</button>
   )
 }

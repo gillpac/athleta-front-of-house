@@ -1203,32 +1203,38 @@ export default function TodayClient({
           sub="Mark arrival, then the outcome"
           right={todayTrials.length > 0 ? `${todayTrials.length} today` : undefined}
         >
-          {/* Tab row */}
-          <div style={{ display: 'flex', gap: 2, padding: '0 22px 10px', overflowX: 'auto' }}>
-            {([
-              ['today', 'Today'],
-              ['tomorrow', 'Tomorrow'],
-              ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
-              ['next_week', 'Next week'],
-              ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
-              ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
-              ['custom', 'Custom…'],
-            ] as [string, string][]).map(([key, label]) => (
-              <button key={key} onClick={() => setTrialTab(key as typeof trialTab)} style={{ ...segtabStyle(key), whiteSpace: 'nowrap' }}>{label}</button>
-            ))}
-          </div>
-          {/* Site toggle row (admin only) — always on its own line */}
-          {isMultiSite && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 22px 12px' }}>
-              <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2 }}>
+          {/* Tab row + site toggle on same line */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 12px', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {([
+                ['today', 'Today'],
+                ['tomorrow', 'Tomorrow'],
+                ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
+                ['next_week', 'Next week'],
+                ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
+                ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
+              ] as [string, string][]).map(([key, label]) => (
+                <button key={key} onClick={() => setTrialTab(key as typeof trialTab)} style={{ ...segtabStyle(key), whiteSpace: 'nowrap' }}>{label}</button>
+              ))}
+              {/* Calendar icon for custom range */}
+              <button onClick={() => setTrialTab('custom')} title="Custom date range" style={{
+                ...segtabStyle('custom'), padding: '5px 9px', display: 'inline-flex', alignItems: 'center',
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={trialTab === 'custom' ? C.ink : C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </button>
+            </div>
+            {isMultiSite && (
+              <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2, flexShrink: 0 }}>
                 {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
                   <button key={s} onClick={() => setSiteFilter(s)} style={siteToggleStyle(s)}>
-                    {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
+                    {s === 'all' ? 'All' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Custom date range */}
           {trialTab === 'custom' && (

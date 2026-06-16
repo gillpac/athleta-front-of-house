@@ -6,18 +6,23 @@ import { createLead, bookTrial, makeSale } from './actions'
 import { ProfilePanel } from '../components/ProfilePanel'
 
 const C = {
-  SAND: '#F6F3EE',
-  WHITE: '#FFFFFF',
-  INK: '#17130E',
-  MUTED: '#84776A',
-  BORDER: '#D9CFC2',
+  WHITE: '#ffffff',
+  INK: '#23201d',
+  HEAD: '#14110d',
+  BODY: '#4a453f',
+  MUTED: '#5f5851',
+  FAINT: '#877f75',
+  BORDER: '#efeae3',
+  LINE2: '#e6e0d8',
+  SOFT: '#faf8f6',
   ORANGE: '#E26839',
-  GREEN: '#3A7D44',
-  RED: '#C0392B',
-  YELLOW: '#B7791F',
-  YELLOW_BG: '#FFFBEB',
+  GREEN: '#3f8f5e',
+  RED: '#bf4a30',
+  YELLOW: '#9A7409',
+  YELLOW_BG: '#FBF1CF',
+  SAND: '#f6f4f1',
 }
-const FONT = "'Nunito', system-ui, sans-serif"
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'New',
@@ -28,13 +33,13 @@ const STATUS_LABELS: Record<string, string> = {
   lost: 'Lost',
 }
 
-const STATUS_COLOURS: Record<string, { background: string; color: string }> = {
-  new: { background: C.RED, color: C.WHITE },
-  booked: { background: '#D97706', color: C.WHITE },
-  noshow: { background: '#D97706', color: C.WHITE },
-  won: { background: C.GREEN, color: C.WHITE },
-  nurture: { background: '#6B7280', color: C.WHITE },
-  lost: { background: '#9CA3AF', color: C.WHITE },
+const STATUS_COLOURS: Record<string, { background: string; color: string; borderRadius: number }> = {
+  new: { background: '#fde8e3', color: C.RED, borderRadius: 5 },
+  booked: { background: '#FBF1CF', color: '#9A7409', borderRadius: 5 },
+  noshow: { background: '#fde8e3', color: C.RED, borderRadius: 5 },
+  won: { background: '#eef6f0', color: C.GREEN, borderRadius: 5 },
+  nurture: { background: '#f3efe9', color: C.MUTED, borderRadius: 5 },
+  lost: { background: '#f3efe9', color: C.FAINT, borderRadius: 5 },
 }
 
 const LOSS_REASONS = ['Too expensive', 'Not the right time', 'Too far away', 'Chose another gym', 'Other']
@@ -380,111 +385,117 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
     })
   }, [leads, statusFilter, siteFilter, dateFilter, customFrom, customTo, search, guardianMap])
 
-  return (
-    <div style={{ maxWidth: 800 }}>
-      {/* Search */}
-      <input
-        type="search"
-        placeholder="Search by child name, guardian name or phone…"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ width: '100%', padding: '10px 14px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 12, boxSizing: 'border-box', background: C.WHITE }}
-      />
+  const filterBtn = (active: boolean, dark?: boolean): React.CSSProperties => ({
+    padding: '5px 12px', fontSize: 12.5, fontWeight: active ? 600 : 500, cursor: 'pointer',
+    borderRadius: 6, fontFamily: FONT,
+    background: active ? (dark ? C.INK : C.ORANGE) : C.WHITE,
+    color: active ? C.WHITE : C.MUTED,
+    border: `1px solid ${active ? (dark ? C.INK : C.ORANGE) : C.LINE2}`,
+  })
 
-      {/* Status filters — two rows */}
-      <div style={{ marginBottom: isAdmin ? 8 : 16 }}>
-        {/* Row 1: pre-trial (new leads) */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>New leads</span>
-          <button onClick={() => setStatusFilter('all')}
-            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === 'all' ? C.ORANGE : C.WHITE, color: statusFilter === 'all' ? C.WHITE : C.INK, border: `1px solid ${statusFilter === 'all' ? C.ORANGE : C.BORDER}` }}>
-            All
-          </button>
+  return (
+    <div style={{ maxWidth: 860 }}>
+      {/* Search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: C.SOFT, border: `1px solid ${C.LINE2}`, borderRadius: 8, padding: '9px 13px', marginBottom: 16 }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.FAINT} strokeWidth="2.2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="search"
+          placeholder="Search by child name, guardian name or phone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ border: 'none', background: 'none', outline: 'none', fontFamily: FONT, fontSize: 13.5, color: C.INK, width: '100%' }}
+        />
+      </div>
+
+      {/* Status filters */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.FAINT, textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>New leads</span>
+          <button onClick={() => setStatusFilter('all')} style={filterBtn(statusFilter === 'all')}>All</button>
           {PRE_TRIAL_FILTERS.map(f => (
-            <button key={f.key} onClick={() => setStatusFilter(f.key)}
-              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.ORANGE : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.INK, border: `1px solid ${statusFilter === f.key ? C.ORANGE : C.BORDER}` }}>
-              {f.label}
-            </button>
+            <button key={f.key} onClick={() => setStatusFilter(f.key)} style={filterBtn(statusFilter === f.key)}>{f.label}</button>
           ))}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: C.MUTED, alignSelf: 'center' }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
-          <button onClick={() => setShowAddModal(true)}
-            style={{ padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.ORANGE, color: C.WHITE, border: 'none' }}>
-            + Add lead
-          </button>
+          <span style={{ marginLeft: 'auto', fontSize: 12.5, color: C.MUTED }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={() => setShowAddModal(true)} style={{ ...filterBtn(true), marginLeft: 8 }}>+ Add lead</button>
         </div>
-        {/* Row 2: post-trial */}
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 2 }}>Trials &amp; beyond</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.FAINT, textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Trials &amp; beyond</span>
           {POST_TRIAL_FILTERS.map(f => (
-            <button key={f.key} onClick={() => setStatusFilter(f.key)}
-              style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: statusFilter === f.key ? C.INK : C.WHITE, color: statusFilter === f.key ? C.WHITE : C.MUTED, border: `1px solid ${statusFilter === f.key ? C.INK : C.BORDER}` }}>
-              {f.label}
-            </button>
+            <button key={f.key} onClick={() => setStatusFilter(f.key)} style={filterBtn(statusFilter === f.key, true)}>{f.label}</button>
           ))}
         </div>
       </div>
+
       {isAdmin && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2, marginBottom: 10 }}>
           {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
-            <button key={s} onClick={() => setSiteFilter(s)}
-              style={{
-                padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                background: siteFilter === s ? C.INK : C.WHITE,
-                color: siteFilter === s ? C.WHITE : C.INK,
-                border: `1px solid ${siteFilter === s ? C.INK : C.BORDER}`,
-              }}>
+            <button key={s} onClick={() => setSiteFilter(s)} style={{
+              fontFamily: FONT, border: 'none', fontSize: 12,
+              background: siteFilter === s ? C.WHITE : 'none',
+              color: siteFilter === s ? C.INK : C.MUTED,
+              padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+              fontWeight: siteFilter === s ? 600 : 500,
+              boxShadow: siteFilter === s ? '0 1px 2px rgba(0,0,0,.07)' : 'none',
+            }}>
               {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
             </button>
           ))}
         </div>
       )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, color: C.MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>Date received:</label>
+        <label style={{ fontSize: 12.5, color: C.MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>Date received:</label>
         <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
-          style={{ padding: '5px 10px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer' }}>
+          style={{ padding: '5px 10px', fontSize: 12.5, border: `1px solid ${C.LINE2}`, background: C.WHITE, cursor: 'pointer', borderRadius: 6, fontFamily: FONT }}>
           {DATE_FILTERS.map(f => <option key={f} value={f}>{DATE_FILTER_LABELS[f]}</option>)}
         </select>
         {dateFilter === 'custom' && (
           <>
             <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.LINE2}`, background: C.WHITE, borderRadius: 6 }} />
             <span style={{ fontSize: 12, color: C.MUTED }}>to</span>
             <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.BORDER}`, background: C.WHITE }} />
+              style={{ padding: '5px 8px', fontSize: 12, border: `1px solid ${C.LINE2}`, background: C.WHITE, borderRadius: 6 }} />
           </>
         )}
       </div>
 
       {/* Lead rows */}
       {filtered.length === 0 && (
-        <div style={{ padding: 40, textAlign: 'center', color: C.MUTED, fontSize: 14 }}>No leads found</div>
+        <div style={{ padding: 40, textAlign: 'center', color: C.MUTED, fontSize: 13 }}>No leads found</div>
       )}
       {filtered.map(lead => {
         const g = guardianMap[lead.guardian_id]
         const prog = programmes.find(p => p.id === lead.programme_id)
-        const sc = STATUS_COLOURS[lead.status] ?? { bg: '#6B7280', color: C.WHITE }
+        const sc = STATUS_COLOURS[lead.status] ?? { background: '#f3efe9', color: C.MUTED, borderRadius: 5 }
         const wait = lead.status === 'new' ? waitTime(lead.received_at) : null
 
         return (
           <div key={lead.id}
             onClick={() => setSelectedId(lead.id)}
             style={{
-              background: C.WHITE, border: `1px solid ${C.BORDER}`, marginBottom: 6,
-              padding: '12px 16px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start',
+              background: C.WHITE, border: `1px solid ${C.BORDER}`, borderRadius: 8, marginBottom: 6,
+              padding: '13px 18px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start',
+              fontFamily: FONT,
             }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{lead.child_first} {lead.child_last}</span>
+                <span style={{ fontWeight: 600, fontSize: 14, color: C.INK }}>{lead.child_first} {lead.child_last}</span>
                 <span style={{ ...sc, padding: '2px 7px', fontSize: 11, fontWeight: 600 }}>{STATUS_LABELS[lead.status]}</span>
-                {prog && <span style={{ fontSize: 11, color: C.MUTED }}>{prog.name}</span>}
+                {prog && <span style={{ fontSize: 11, color: C.MUTED, background: '#f4f0ea', padding: '2px 7px', borderRadius: 5 }}>{prog.name}</span>}
                 {wait && <span style={{ fontSize: 11, color: wait.color, fontWeight: 600 }}>{wait.label}</span>}
               </div>
-              <div style={{ fontSize: 12, color: C.MUTED, marginTop: 3 }}>
-                {g ? `${g.first_name} ${g.last_name} · ${g.phone}` : '—'}
+              <div style={{ fontSize: 13, color: '#524b43', marginTop: 3 }}>
+                {g ? `${g.first_name} ${g.last_name}` : '—'}
+              </div>
+              <div style={{ fontSize: 13, color: C.MUTED, marginTop: 1 }}>
+                {g?.phone}
                 {lead.trial_at && <span style={{ marginLeft: 10 }}>Trial: {fmtDateTime(lead.trial_at)}</span>}
               </div>
             </div>
-            <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap', textAlign: 'right', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 11.5, color: C.MUTED, whiteSpace: 'nowrap', textAlign: 'right', lineHeight: 1.7 }}>
               {isAdmin && <div>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</div>}
               <div>{new Date(lead.received_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Australia/Melbourne' })}</div>
             </div>

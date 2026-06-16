@@ -5,17 +5,22 @@ import type { AppUser, Cancellation, CancelStage, CancelOutcome } from '@/types'
 import { advanceStage, setSaveOutcome, toggleFeesFlag, updateEffectiveDate, undoStage, archiveCancellation } from './actions'
 
 const C = {
-  SAND: '#F6F3EE',
-  WHITE: '#FFFFFF',
-  INK: '#17130E',
-  MUTED: '#84776A',
-  BORDER: '#D9CFC2',
+  WHITE: '#ffffff',
+  INK: '#23201d',
+  HEAD: '#14110d',
+  BODY: '#4a453f',
+  MUTED: '#5f5851',
+  FAINT: '#877f75',
+  BORDER: '#efeae3',
+  LINE2: '#e6e0d8',
+  SOFT: '#faf8f6',
   ORANGE: '#E26839',
-  GREEN: '#3A7D44',
-  RED: '#C0392B',
-  YELLOW_BG: '#FFFBEB',
-  YELLOW: '#B7791F',
+  GREEN: '#3f8f5e',
+  RED: '#bf4a30',
+  YELLOW: '#9A7409',
+  YELLOW_BG: '#FBF1CF',
 }
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 
 const STAGE_LABELS: Record<CancelStage, string> = {
   received: 'Received',
@@ -26,11 +31,11 @@ const STAGE_LABELS: Record<CancelStage, string> = {
 
 const STAGE_ORDER: CancelStage[] = ['received', 'save_attempt', 'processed', 'verified']
 
-const STAGE_COLOURS: Record<CancelStage, { bg: string; color: string }> = {
-  received: { bg: C.RED, color: C.WHITE },
-  save_attempt: { bg: '#D97706', color: C.WHITE },
-  processed: { bg: '#2563EB', color: C.WHITE },
-  verified: { bg: C.GREEN, color: C.WHITE },
+const STAGE_COLOURS: Record<CancelStage, { bg: string; color: string; border: string }> = {
+  received: { bg: '#fde8e3', color: C.RED, border: C.RED },
+  save_attempt: { bg: '#FBF1CF', color: '#9A7409', border: '#9A7409' },
+  processed: { bg: '#e8eeff', color: '#2563EB', border: '#2563EB' },
+  verified: { bg: '#eef6f0', color: C.GREEN, border: C.GREEN },
 }
 
 const OUTCOME_LABELS: Record<CancelOutcome, string> = {
@@ -82,21 +87,21 @@ function DetailPanel({ c, user, onClose }: DetailPanelProps) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={onClose} />
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 460, maxWidth: '100vw',
-        background: C.WHITE, borderLeft: `1px solid ${C.BORDER}`, zIndex: 201,
-        display: 'flex', flexDirection: 'column',
+        background: C.WHITE, borderLeft: `3px solid ${C.ORANGE}`, zIndex: 201,
+        display: 'flex', flexDirection: 'column', fontFamily: FONT,
       }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{c.member_name}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-              <span style={{ ...sc, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{STAGE_LABELS[c.stage]}</span>
-              {c.outcome && <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.INK, fontWeight: 600 }}>{OUTCOME_LABELS[c.outcome]}</span>}
-              <span style={{ padding: '2px 8px', fontSize: 11, background: '#E5E7EB', color: C.MUTED }}>{c.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>
-              {c.outstanding_fees_flag && <span style={{ padding: '2px 8px', fontSize: 11, background: C.RED, color: C.WHITE, fontWeight: 600 }}>⚠ Fees outstanding</span>}
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.HEAD }}>{c.member_name}</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', fontSize: 11, fontWeight: 600, borderRadius: 5 }}>{STAGE_LABELS[c.stage]}</span>
+              {c.outcome && <span style={{ padding: '2px 8px', fontSize: 11, background: '#f3efe9', color: C.MUTED, fontWeight: 600, borderRadius: 5 }}>{OUTCOME_LABELS[c.outcome]}</span>}
+              <span style={{ padding: '2px 8px', fontSize: 11, background: '#f3efe9', color: C.MUTED, borderRadius: 5 }}>{c.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</span>
+              {c.outstanding_fees_flag && <span style={{ padding: '2px 8px', fontSize: 11, background: '#fde8e3', color: C.RED, fontWeight: 600, borderRadius: 5 }}>Fees outstanding</span>}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.MUTED }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: C.MUTED, fontFamily: FONT }}>×</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 140px' }}>
@@ -325,23 +330,23 @@ export default function CancellationsClient({ user, cancellations }: Props) {
 
   return (
     <div style={{ maxWidth: 800 }}>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: FONT }}>
         <div style={{ fontSize: 13, color: C.MUTED }}>{filtered.length} cancellation{filtered.length !== 1 ? 's' : ''}</div>
         <a href="/cancel" target="_blank"
-          style={{ fontSize: 12, color: C.ORANGE, textDecoration: 'underline', cursor: 'pointer' }}>
-          Public cancellation form ↗
+          style={{ fontSize: 12.5, color: C.ORANGE, textDecoration: 'none', fontWeight: 600, cursor: 'pointer' }}>
+          Public form ↗
         </a>
       </div>
 
       {/* Stage filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: isAdmin ? 8 : 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: isAdmin ? 8 : 14, flexWrap: 'wrap' }}>
         {(['all', ...STAGE_ORDER] as string[]).map(s => (
           <button key={s} onClick={() => setStageFilter(s)}
             style={{
-              padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              fontFamily: FONT, padding: '5px 12px', fontSize: 12.5, fontWeight: stageFilter === s ? 600 : 500, cursor: 'pointer', borderRadius: 6,
               background: stageFilter === s ? C.ORANGE : C.WHITE,
-              color: stageFilter === s ? C.WHITE : C.INK,
-              border: `1px solid ${stageFilter === s ? C.ORANGE : C.BORDER}`,
+              color: stageFilter === s ? C.WHITE : C.MUTED,
+              border: `1px solid ${stageFilter === s ? C.ORANGE : C.LINE2}`,
             }}>
             {STAGE_FILTER_LABELS[s as string]}
             {s !== 'all' && counts[s] ? ` (${counts[s]})` : ''}
@@ -350,15 +355,16 @@ export default function CancellationsClient({ user, cancellations }: Props) {
       </div>
 
       {isAdmin && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'inline-flex', background: '#f3efe9', borderRadius: 7, padding: 3, gap: 2, marginBottom: 14 }}>
           {(['all', 'coolaroo', 'altona_north'] as const).map(s => (
-            <button key={s} onClick={() => setSiteFilter(s)}
-              style={{
-                padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                background: siteFilter === s ? C.INK : C.WHITE,
-                color: siteFilter === s ? C.WHITE : C.INK,
-                border: `1px solid ${siteFilter === s ? C.INK : C.BORDER}`,
-              }}>
+            <button key={s} onClick={() => setSiteFilter(s)} style={{
+              fontFamily: FONT, border: 'none', fontSize: 12,
+              background: siteFilter === s ? C.WHITE : 'none',
+              color: siteFilter === s ? C.INK : C.MUTED,
+              padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+              fontWeight: siteFilter === s ? 600 : 500,
+              boxShadow: siteFilter === s ? '0 1px 2px rgba(0,0,0,.07)' : 'none',
+            }}>
               {s === 'all' ? 'All sites' : s === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
             </button>
           ))}
@@ -366,7 +372,7 @@ export default function CancellationsClient({ user, cancellations }: Props) {
       )}
 
       {filtered.length === 0 && (
-        <div style={{ padding: 40, textAlign: 'center', color: C.MUTED, fontSize: 14 }}>No cancellations found</div>
+        <div style={{ padding: 40, textAlign: 'center', color: C.MUTED, fontSize: 13, fontFamily: FONT }}>No cancellations found</div>
       )}
 
       {filtered.map(c => {
@@ -374,28 +380,28 @@ export default function CancellationsClient({ user, cancellations }: Props) {
         return (
           <div key={c.id} onClick={() => setSelectedId(c.id)}
             style={{
-              background: C.WHITE, border: `1px solid ${C.BORDER}`,
-              borderLeft: `4px solid ${sc.bg}`,
-              marginBottom: 6, padding: '12px 16px', cursor: 'pointer',
-              display: 'flex', gap: 12, alignItems: 'flex-start',
+              background: C.WHITE, border: `1px solid ${C.BORDER}`, borderRadius: 8,
+              borderLeft: `4px solid ${sc.border}`,
+              marginBottom: 6, padding: '13px 18px', cursor: 'pointer',
+              display: 'flex', gap: 12, alignItems: 'flex-start', fontFamily: FONT,
             }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{c.member_name}</span>
-                <span style={{ ...sc, padding: '2px 7px', fontSize: 11, fontWeight: 600 }}>{STAGE_LABELS[c.stage]}</span>
-                {c.outcome && <span style={{ padding: '2px 7px', fontSize: 11, background: '#E5E7EB', color: C.INK, fontWeight: 600 }}>{OUTCOME_LABELS[c.outcome]}</span>}
-                {c.outstanding_fees_flag && <span style={{ fontSize: 11, color: C.RED, fontWeight: 700 }}>⚠ fees</span>}
+                <span style={{ fontWeight: 600, fontSize: 14, color: C.INK }}>{c.member_name}</span>
+                <span style={{ background: sc.bg, color: sc.color, padding: '2px 7px', fontSize: 11, fontWeight: 600, borderRadius: 5 }}>{STAGE_LABELS[c.stage]}</span>
+                {c.outcome && <span style={{ padding: '2px 7px', fontSize: 11, background: '#f3efe9', color: C.MUTED, fontWeight: 600, borderRadius: 5 }}>{OUTCOME_LABELS[c.outcome]}</span>}
+                {c.outstanding_fees_flag && <span style={{ fontSize: 11, color: C.RED, fontWeight: 700 }}>fees outstanding</span>}
               </div>
-              <div style={{ fontSize: 12, color: C.MUTED, marginTop: 3 }}>
+              <div style={{ fontSize: 13, color: C.MUTED, marginTop: 3 }}>
                 {c.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}
                 {c.phone && ` · ${c.phone}`}
                 {` · effective ${fmtDate(c.effective_date)}`}
               </div>
               {c.reasons.length > 0 && (
-                <div style={{ fontSize: 11, color: C.MUTED, marginTop: 2 }}>{c.reasons.join(', ')}</div>
+                <div style={{ fontSize: 12, color: C.FAINT, marginTop: 2 }}>{c.reasons.join(', ')}</div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: C.MUTED, whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 12, color: C.MUTED, whiteSpace: 'nowrap' }}>
               {fmtDate(c.notice_date)}
             </div>
           </div>

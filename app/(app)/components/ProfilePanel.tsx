@@ -10,17 +10,21 @@ import {
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  ink: '#17130E',
-  orange: '#E26839', orangeDark: '#B94E22',
-  bg: '#F6F3EE', card: '#FFFFFF',
-  sand: '#EFE8DE', line: '#D9CFC2', lineSoft: '#E8E1D6',
-  muted: '#84776A',
-  green: '#27865C', greenDark: '#1E6B49', greenBg: '#DFF0E6',
+  ink: '#23201d',
+  head: '#14110d',
+  body: '#4a453f',
+  muted: '#5f5851',
+  faint: '#877f75',
+  orange: '#E26839', orangeDark: '#c85528',
+  bg: '#f6f4f1', card: '#FFFFFF',
+  soft: '#faf8f6',
+  sand: '#f0ebe4', line: '#efeae3', lineSoft: '#efeae3', line2: '#e6e0d8',
+  green: '#3f8f5e', greenDark: '#2d6b46', greenBg: '#eef6f0',
   yellow: '#9A7409', yellowBg: '#FBF1CF',
-  red: '#B23A24', redBg: '#F6DCD4',
-  grey: '#6E655B', greyBg: '#ECE7DF',
+  red: '#bf4a30', redBg: '#fde8e3',
+  grey: '#5f5851', greyBg: '#f3efe9',
 }
-const FONT = "'Nunito', system-ui, sans-serif"
+const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ageFrom(dob: string | null): string {
