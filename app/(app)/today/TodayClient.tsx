@@ -1102,10 +1102,13 @@ export default function TodayClient({
 
   const tomorrowStr = addDays(todayStr, 1)
   const dow = new Date(todayStr + 'T12:00:00').getDay()
-  const daysToSat = dow === 0 ? 6 : 6 - dow
-  const endOfThisWeekStr = addDays(todayStr, daysToSat)
-  const nextWeekStartStr = addDays(todayStr, daysToSat + 2)
-  const nextWeekEndStr = addDays(todayStr, daysToSat + 7)
+  // Calendar week, Monday→Sunday — matches the Leads page date filter so the
+  // "this week" / "next week" counts agree across both screens.
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1
+  const startOfThisWeekStr = addDays(todayStr, -daysSinceMonday)
+  const endOfThisWeekStr = addDays(startOfThisWeekStr, 6)
+  const nextWeekStartStr = addDays(startOfThisWeekStr, 7)
+  const nextWeekEndStr = addDays(startOfThisWeekStr, 13)
   const firstOfMonthStr = todayStr.slice(0, 8) + '01'
   const endOfMonthStr = (() => { const d = new Date(todayStr.slice(0, 7) + '-01T12:00:00'); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10) })()
 
@@ -1117,9 +1120,9 @@ export default function TodayClient({
   const trialsByTab = {
     today: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === todayStr),
     tomorrow: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === tomorrowStr),
-    // "This week" runs from today through Saturday — so it includes today's and
-    // tomorrow's trials too (they overlap the Today/Tomorrow tabs by design).
-    this_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= todayStr && trialMelbDate(l.trial_at) <= endOfThisWeekStr),
+    // "This week" = the Monday→Sunday calendar week (matches the Leads page).
+    // Includes today's and tomorrow's trials — they overlap the Today/Tomorrow tabs.
+    this_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= startOfThisWeekStr && trialMelbDate(l.trial_at) <= endOfThisWeekStr),
     next_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= nextWeekStartStr && trialMelbDate(l.trial_at) <= nextWeekEndStr),
     // "This month" = every trial in the month regardless of day, including no-shows.
     // No-shows keep their original trial_at; legacy/seed no-shows with no trial_at
@@ -1169,7 +1172,7 @@ export default function TodayClient({
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
   const month = monthName(todayStr)
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
-  const thisWeekTrialsCount = bookedLeads.filter(l => l.trial_at && melbDate(l.trial_at) >= todayStr && melbDate(l.trial_at) <= endOfThisWeekStr).length
+  const thisWeekTrialsCount = bookedLeads.filter(l => l.trial_at && melbDate(l.trial_at) >= startOfThisWeekStr && melbDate(l.trial_at) <= endOfThisWeekStr).length
 
   // Rail site toggle selects which target/count to display
   const railTarget = railSite === 'all' ? target : (perSiteTargets[railSite] ?? target)

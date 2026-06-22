@@ -330,11 +330,16 @@ function isInDateRange(isoDate: string, filter: string, customFrom?: string, cus
   if (filter === 'today') return d >= today && d < new Date(today.getTime() + 86400000)
   const day = now.getDay()
   const monday = new Date(today); monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1))
-  if (filter === 'this_week') return d >= monday
+  // Upper bounds matter: booked leads are dated by trial_at, which can be in a
+  // future week/month. Without a cap, a future trial leaks into "this week/month"
+  // and won't match the dashboard (which caps at the period end).
+  const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7)
+  if (filter === 'this_week') return d >= monday && d < nextMonday
   const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7)
   if (filter === 'last_week') return d >= lastMonday && d < monday
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  if (filter === 'this_month') return d >= firstOfMonth
+  const firstOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  if (filter === 'this_month') return d >= firstOfMonth && d < firstOfNextMonth
   const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   if (filter === 'last_month') return d >= firstOfLastMonth && d < firstOfMonth
   if (filter === 'custom') {
