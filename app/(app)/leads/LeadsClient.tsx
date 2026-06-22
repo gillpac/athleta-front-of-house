@@ -380,11 +380,16 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
       if (statusFilter === 'new_contacted' && !(l.status === 'new' && l.contacted)) return false
       if (statusFilter !== 'all' && !statusFilter.startsWith('new_') && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
-      // Date basis matches what the user is measuring: enrolments are dated by when
-      // the sale was made (sold_at), everything else by when the lead arrived
-      // (received_at). Keeps "Enrolled + This month" equal to the dashboard's
-      // sales-this-month count instead of counting by intake date.
-      const dateBasis = (l.status === 'won' && l.sold_at) ? l.sold_at : l.received_at
+      // Date basis varies by status so each filter means what the user expects:
+      // - Booked: trial_at (when the trial is) so "Booked → This month" = trials
+      //   in this month, matching the dashboard Trials widget
+      // - Enrolled: sold_at (when the sale closed) so "Enrolled → This month" =
+      //   sales made this month, matching the dashboard sales count
+      // - Everything else: received_at (when the lead arrived)
+      const dateBasis =
+        l.status === 'booked' && l.trial_at ? l.trial_at :
+        l.status === 'won' && l.sold_at ? l.sold_at :
+        l.received_at
       if (!isInDateRange(dateBasis, dateFilter, customFrom, customTo)) return false
       if (!q) return true
       const g = guardianMap[l.guardian_id]

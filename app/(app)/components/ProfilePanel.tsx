@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from 'react'
 import type { Lead, Guardian, Programme } from '@/types'
 import {
   logCallOutcome, bookTrial, makeSale, markDidntEnrol, markLost, markNoShow, markUnreachable,
-  sendConfirmation, verifySale, logNote, logText, logEmail,
+  sendConfirmation, verifySale, logNote, logText, logEmail, setReminder,
   resendForm, markFormReceived, sendJotform, getJotformLink, updateLeadProfile, archiveLeadWithReason,
 } from '../today/actions'
 
@@ -166,6 +166,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
   const [selected, setSelected] = useState<string | null>(null)
   const [customDate, setCustomDate] = useState(tomorrowDateStr())
   const [showCustom, setShowCustom] = useState(false)
+  const [otherNote, setOtherNote] = useState('')
 
   function tileStyle(active: boolean, accent = C.ink) {
     return {
@@ -173,6 +174,34 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
       padding: '8px 6px', border: `1px solid ${active ? accent : C.line}`,
       background: active ? accent : '#fff', color: active ? '#fff' : C.muted,
     } as React.CSSProperties
+  }
+
+  if (step === '__other__') {
+    return (
+      <div style={{
+        position: 'absolute', top: '105%', left: 0,
+        background: '#fff', border: `1px solid ${C.line}`,
+        borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 30, minWidth: 280, padding: 12,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>What happened?</div>
+        <textarea
+          autoFocus
+          value={otherNote} onChange={e => setOtherNote(e.target.value)}
+          placeholder="Describe the call outcome…"
+          style={{ width: '100%', padding: '7px 9px', fontSize: 12.5, border: `1px solid ${C.line}`, fontFamily: FONT, resize: 'none', boxSizing: 'border-box' as const, marginBottom: 8 }}
+          rows={3}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setStep(null)} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>Back</button>
+          <button
+            onClick={() => otherNote.trim() && onPick(`Other — ${otherNote.trim()}`)}
+            disabled={!otherNote.trim()}
+            style={{ flex: 2, padding: '7px', border: 'none', background: otherNote.trim() ? C.ink : C.greyBg, color: otherNote.trim() ? '#fff' : C.muted, cursor: otherNote.trim() ? 'pointer' : 'default', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            Log outcome
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (step) {
@@ -244,7 +273,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
             borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer', color: '#2B2521',
           }}>{o}</button>
       ))}
-      <button onClick={() => onPick('__open_profile__')}
+      <button onClick={() => setStep('__other__')}
         style={{
           display: 'block', width: '100%', textAlign: 'left',
           fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
@@ -553,6 +582,10 @@ export function ProfilePanel({
   const [emailMsgOpen, setEmailMsgOpen] = useState(false)
   const [emailMsg, setEmailMsg] = useState('')
   const [lossOpen, setLossOpen] = useState(false)
+  const [reminderOpen, setReminderOpen] = useState(false)
+  const [reminderNote, setReminderNote] = useState('')
+  const [reminderDate, setReminderDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })
+  const [reminderTime, setReminderTime] = useState('09:00')
   const [jotformLink, setJotformLink] = useState<string | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
 
@@ -666,8 +699,48 @@ export function ProfilePanel({
               {lead.status === 'won' && !lead.verified_at && isAdmin && (
                 <Sale onClick={() => startTransition(() => verifySale(lead.id, userId))}>Verify sale ✓</Sale>
               )}
+              <Quiet onClick={() => { setReminderOpen(v => !v); setCallOpen(false); setTextMsgOpen(false); setEmailMsgOpen(false); setLossOpen(false) }}>⏰ Set reminder</Quiet>
               {callOpen && <CallMenu onPick={handleCall} onClose={() => setCallOpen(false)} />}
             </div>
+
+            {/* Reminder / follow-up inline */}
+            {reminderOpen && (
+              <div style={{ background: C.sand, border: `1px solid ${C.line}`, borderRadius: 6, padding: '10px 12px', marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Set a reminder</div>
+                <input
+                  value={reminderNote} onChange={e => setReminderNote(e.target.value)}
+                  placeholder="What needs to be done? (e.g. call to confirm attendance)"
+                  style={{ ...inp, width: '100%', boxSizing: 'border-box' as const, marginBottom: 8, fontSize: 12.5 }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <label style={{ flex: 1, fontSize: 11, fontWeight: 700, color: C.muted }}>
+                    Date
+                    <input type="date" value={reminderDate} min={new Date().toISOString().slice(0,10)}
+                      onChange={e => setReminderDate(e.target.value)}
+                      style={{ ...inp, display: 'block', width: '100%', boxSizing: 'border-box' as const, marginTop: 3 }}
+                    />
+                  </label>
+                  <label style={{ flex: 1, fontSize: 11, fontWeight: 700, color: C.muted }}>
+                    Time
+                    <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)}
+                      style={{ ...inp, display: 'block', width: '100%', boxSizing: 'border-box' as const, marginTop: 3 }}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Quiet onClick={() => setReminderOpen(false)}>Cancel</Quiet>
+                  <Next
+                    disabled={!reminderNote.trim() || !reminderDate}
+                    onClick={() => {
+                      if (!reminderNote.trim() || !reminderDate) return
+                      const iso = new Date(`${reminderDate}T${reminderTime}:00`).toISOString()
+                      startTransition(() => setReminder(lead.id, userId, reminderNote.trim(), iso))
+                      setReminderOpen(false); setReminderNote('')
+                    }}
+                  >Save reminder</Next>
+                </div>
+              </div>
+            )}
 
             {/* Didn't enrol — loss picker inline */}
             {lossOpen && (

@@ -11,6 +11,7 @@ import {
   markDidntEnrol,
   markLost,
   sendConfirmation,
+  markConfirmationSent,
   verifySale,
   logIclassCheck,
   toggleChecklist,
@@ -254,6 +255,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
   const [selected, setSelected] = useState<string | null>(null)
   const [customDate, setCustomDate] = useState(tomorrowDateStr())
   const [showCustom, setShowCustom] = useState(false)
+  const [otherNote, setOtherNote] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -271,6 +273,34 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
       background: active ? accent : '#fff', color: active ? '#fff' : C.muted,
       borderRadius: 6,
     } as React.CSSProperties
+  }
+
+  if (step === '__other__') {
+    return (
+      <div ref={menuRef} style={{
+        position: 'absolute', top: '105%', right: 0,
+        background: '#fff', border: `1px solid ${C.line2}`,
+        borderRadius: RADIUS, boxShadow: '0 10px 30px rgba(0,0,0,.12)', zIndex: 30, minWidth: 280, padding: 12,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>What happened?</div>
+        <textarea
+          autoFocus
+          value={otherNote} onChange={e => setOtherNote(e.target.value)}
+          placeholder="Describe the call outcome…"
+          style={{ width: '100%', padding: '7px 9px', fontSize: 13, border: `1px solid ${C.line2}`, borderRadius: 6, fontFamily: FONT, resize: 'none', boxSizing: 'border-box' as const, marginBottom: 8 }}
+          rows={3}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setStep(null)} style={{ flex: 1, padding: '7px', border: `1px solid ${C.line2}`, background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: FONT, borderRadius: 6 }}>Back</button>
+          <button
+            onClick={() => otherNote.trim() && onPick(`Other — ${otherNote.trim()}`)}
+            disabled={!otherNote.trim()}
+            style={{ flex: 2, padding: '7px', border: 'none', borderRadius: 6, background: otherNote.trim() ? C.ink : C.greyBg, color: otherNote.trim() ? '#fff' : C.muted, cursor: otherNote.trim() ? 'pointer' : 'default', fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            Log outcome
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (step) {
@@ -347,7 +377,7 @@ function CallMenu({ onPick, onClose }: { onPick: (o: string, followUpAt?: string
           borderBottom: `1px solid ${C.line}`, cursor: 'pointer', color: C.body,
         }}>{o}</button>
       ))}
-      <button onClick={() => onPick('__open_profile__')} style={{
+      <button onClick={() => setStep('__other__')} style={{
         display: 'block', width: '100%', textAlign: 'left',
         fontFamily: FONT, fontSize: 13, fontWeight: 500,
         padding: '9px 12px', background: 'none', border: 'none',
@@ -839,7 +869,7 @@ function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent,
     // future booked trial — confirmation status
     outcome = lead.confirmation_sent_at
       ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
-      : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>
+      : <BtnPrimary onClick={() => startTransition(() => markConfirmationSent(lead.id, userId))}>Trial confirmation sent</BtnPrimary>
   }
 
   return (

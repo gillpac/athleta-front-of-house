@@ -285,6 +285,38 @@ export async function logNote(leadId: string, note: string, userId: string) {
   revalidatePath('/leads')
 }
 
+// Mark a confirmation as sent without re-triggering the email draft.
+// The draft is already created automatically when the trial is booked; this
+// button is just the staff acknowledging they sent it from Gmail.
+export async function markConfirmationSent(leadId: string, userId: string) {
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+  await supabase.from('leads').update({ confirmation_sent_at: now }).eq('id', leadId)
+  await insertActivity(leadId, userId, 'comm', 'Trial confirmation sent ✓')
+  revalidatePath('/today')
+  revalidatePath('/leads')
+}
+
+// Set a manual reminder/follow-up on a lead. For new and no-show leads this
+// updates next_action_at so the lead surfaces in Follow-ups due on the
+// dashboard. For all statuses it logs the note in the timeline.
+export async function setReminder(leadId: string, userId: string, note: string, followUpAt: string) {
+  const supabase = await createClient()
+  const { data: lead } = await supabase.from('leads').select('status').eq('id', leadId).single()
+  const dateAU = new Date(followUpAt).toLocaleString('en-AU', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne',
+  })
+  if (lead?.status === 'new' || lead?.status === 'noshow') {
+    await supabase.from('leads').update({ next_action_at: followUpAt }).eq('id', leadId)
+  }
+  await Promise.all([
+    insertActivity(leadId, userId, 'note', `Reminder: ${note} — ${dateAU}`),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'set_reminder', after: { note, followUpAt } }),
+  ])
+  revalidatePath('/today')
+  revalidatePath('/leads')
+}
+
 export async function logText(leadId: string, userId: string, message?: string) {
   await insertActivity(leadId, userId, 'comm', message ? `Text sent — ${message}` : 'Text sent')
   revalidatePath('/today')
