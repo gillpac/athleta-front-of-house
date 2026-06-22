@@ -73,11 +73,59 @@ export async function POST() {
 
   const { data: activeProgrammes } = await supabase.from('programmes').select('name').eq('active', true).order('sort')
 
+  // Create the live staff logins (idempotent — skips any auth user that already exists,
+  // and always upserts the app_users profile so role/site stay correct).
+  const staff: Array<{ name: string; email: string; password: string; role: string; site: string | null }> = [
+    { name: 'Mustafa Hamdan',  email: 'coolaroo.lead@athg.com.au', password: 'musty3048',       role: 'site_lead',   site: 'coolaroo' },
+    { name: 'Elaina Black',    email: 'altona.lead@athg.com.au',   password: 'elaina33c',       role: 'site_lead',   site: 'altona_north' },
+    { name: 'Naz Zaven',       email: 'naz@nazco.com.au',          password: 'nazcoportmelb',   role: 'management',  site: null },
+    { name: 'Nicholas Packou', email: 'nicholas@athg.com.au',      password: 'Navarre1',        role: 'management',  site: null },
+    { name: 'Nick Gillies',    email: 'n@athg.com.au',             password: 'Q8mb&12^Y#rRH7c', role: 'management',  site: null },
+    { name: 'Daryl Ramos',     email: 'office@athg.com.au',        password: 'sXESZqphUNWrv4%', role: 'admin',       site: null },
+  ]
+
+  const staffResults: Array<{ email: string; status: string; error?: string }> = []
+  const { data: existingUsers } = await supabase.auth.admin.listUsers()
+
+  for (const s of staff) {
+    let authId: string
+    const existing = existingUsers?.users.find(au => au.email === s.email)
+    if (existing) {
+      authId = existing.id
+      // Refresh the password so the listed credentials are guaranteed to work
+      await supabase.auth.admin.updateUserById(authId, { password: s.password })
+      staffResults.push({ email: s.email, status: 'updated' })
+    } else {
+      const { data: created, error } = await supabase.auth.admin.createUser({
+        email: s.email,
+        password: s.password,
+        email_confirm: true,
+      })
+      if (error || !created.user) {
+        staffResults.push({ email: s.email, status: 'error', error: error?.message })
+        continue
+      }
+      authId = created.user.id
+      staffResults.push({ email: s.email, status: 'created' })
+    }
+
+    const { error: upsertErr } = await supabase.from('app_users').upsert({
+      id: authId,
+      name: s.name,
+      email: s.email,
+      role: s.role,
+      site: s.site,
+      active: true,
+    })
+    if (upsertErr) staffResults.push({ email: s.email, status: 'app_users upsert failed', error: upsertErr.message })
+  }
+
   return NextResponse.json({
     ok: true,
     archivedLeads: archivedCount,
     archivedGuardians,
     cutoff,
     activeProgrammes: (activeProgrammes ?? []).map(p => p.name),
+    staff: staffResults,
   })
 }
