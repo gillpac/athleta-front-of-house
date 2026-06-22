@@ -1129,6 +1129,7 @@ export default function TodayClient({
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
   const month = monthName(todayStr)
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
+  const thisWeekTrialsCount = bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= todayStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr).length
 
   // Rail site toggle selects which target/count to display
   const railTarget = railSite === 'all' ? target : (perSiteTargets[railSite] ?? target)
@@ -1420,8 +1421,8 @@ export default function TodayClient({
           {([
             ['New leads to book', newLeads.length, newLeads.length > 0],
             ['Leads received this month', null, false],
-            ['Trials today', todayTrials.length, false],
-            ['Sales today', 0, false],
+            ['Trials this week', thisWeekTrialsCount, false],
+            ['Sales this week', weekSalesCount, false],
           ] as [string, number | null, boolean][]).map(([label, val, warn]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${C.line}` }}>
               <span style={{ fontSize: 13, color: C.body }}>{label}</span>

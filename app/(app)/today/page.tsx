@@ -112,6 +112,25 @@ export default async function TodayPage() {
     if (v.site) verifiedBySite[v.site] = (verifiedBySite[v.site] ?? 0) + 1
   }
 
+  // Verified sales this week (for "sales this week" rail widget)
+  const weekStart = (() => {
+    const d = new Date(todayStr + 'T12:00:00')
+    const dow = d.getDay()
+    const daysBack = dow === 0 ? 6 : dow - 1
+    d.setDate(d.getDate() - daysBack)
+    return d.toISOString().split('T')[0]
+  })()
+  let weekSalesQuery = supabase
+    .from('leads')
+    .select('id')
+    .eq('status', 'won')
+    .not('verified_at', 'is', null)
+    .gte('sold_at', weekStart + 'T00:00:00.000Z')
+    .is('archived_at', null)
+  if (siteFilter) weekSalesQuery = weekSalesQuery.eq('site', siteFilter)
+  const { data: weekSalesData } = await weekSalesQuery
+  const weekSalesCount = weekSalesData?.length ?? 0
+
   // Blockout days for month
   let blockoutQuery = supabase
     .from('blockout_days')
@@ -196,6 +215,7 @@ export default async function TodayPage() {
       userNames={userNames}
       programmes={(programmes ?? []) as Programme[]}
       todayStr={todayStr}
+      weekSalesCount={weekSalesCount}
     />
   )
 }

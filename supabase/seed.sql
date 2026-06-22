@@ -23,14 +23,10 @@
 
 -- Programmes (reference data — safe to run unconditionally)
 insert into programmes (id, name, min_age, max_age, sort, active) values
-  ('00000000-0000-0000-0000-000000000101', 'Kinder Gym',             2,  4,  1, true),
-  ('00000000-0000-0000-0000-000000000102', 'Beginners Principles',   5,  7,  2, true),
-  ('00000000-0000-0000-0000-000000000103', 'Level 1',                6,  8,  3, true),
-  ('00000000-0000-0000-0000-000000000104', 'Level 2',                7, 10,  4, true),
-  ('00000000-0000-0000-0000-000000000105', 'Level 3',                8, 12,  5, true),
-  ('00000000-0000-0000-0000-000000000106', 'Pre-Squad',              9, 13,  6, true),
-  ('00000000-0000-0000-0000-000000000107', 'Squad',                 10, 18,  7, true)
-on conflict (id) do nothing;
+  ('00000000-0000-0000-0000-000000000101', 'KinderGym',              null, null, 1, true),
+  ('00000000-0000-0000-0000-000000000102', 'Principles Development', null, null, 2, true),
+  ('00000000-0000-0000-0000-000000000107', 'Other',                  null, null, 99, true)
+on conflict (id) do update set name = excluded.name, sort = excluded.sort, min_age = excluded.min_age, max_age = excluded.max_age, active = excluded.active;
 
 -- ============================================================
 -- app_users — replace placeholder UUIDs with real auth.users

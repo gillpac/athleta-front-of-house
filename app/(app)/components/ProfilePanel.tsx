@@ -646,7 +646,7 @@ export function ProfilePanel({
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', position: 'relative' }}>
               <Next onClick={() => { setCallOpen(v => !v); setTextMsgOpen(false); setEmailMsgOpen(false); setLossOpen(false) }}>📞 Call</Next>
-              <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg(''); setEmailMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>💬 Log text</Quiet>
+              <Quiet onClick={() => { setTextMsgOpen(v => !v); setTextMsg(''); setEmailMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>💬 Log SMS</Quiet>
               <Quiet onClick={() => { setEmailMsgOpen(v => !v); setEmailMsg(''); setTextMsgOpen(false); setCallOpen(false); setLossOpen(false) }}>✉ Log email</Quiet>
               {bookable && <Next onClick={() => setBookingOpen(true)}>{lead.status === 'noshow' ? 'Re-book trial' : 'Book trial'}</Next>}
               {(lead.status === 'new' || lead.status === 'noshow') && lead.attempts >= 10 && (
