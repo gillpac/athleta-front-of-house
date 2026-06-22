@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Read-only: list all non-archived cancellations so we can see what's there.
-const SETUP_KEY = 'cancels-2026-06-22'
+// One-time: archive all test/demo cancellations (Lucas Romano, Billy, John)
+// ahead of go-live. Soft-delete only — recoverable.
+const SETUP_KEY = 'cancels-archive-2026-06-22'
 
 export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get('key')
@@ -21,19 +22,16 @@ export async function GET(req: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data } = await supabase.from('cancellations')
-    .select('id, member_name, site, stage, notice_date, effective_date, created_at')
+  const { data: archived, error } = await supabase.from('cancellations')
+    .update({ archived_at: new Date().toISOString() })
     .is('archived_at', null)
-    .order('created_at', { ascending: true })
+    .select('member_name')
 
-  const list = (data ?? []).map(c => ({
-    name: c.member_name,
-    site: c.site,
-    stage: c.stage,
-    notice_date: c.notice_date,
-    effective_date: c.effective_date,
-    created: c.created_at ? new Date(c.created_at).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' }) : null,
-  }))
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, count: list.length, cancellations: list })
+  return NextResponse.json({
+    ok: true,
+    archivedCount: archived?.length ?? 0,
+    archived: (archived ?? []).map(c => c.member_name),
+  })
 }
