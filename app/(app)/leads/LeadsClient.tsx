@@ -112,13 +112,17 @@ function BookingModal({ leadId, userId, programmes, onClose }: BookingModalProps
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [progId, setProgId] = useState('')
+  const [otherProg, setOtherProg] = useState('')
   const [pending, startTransition] = useTransition()
 
+  const isOther = programmes.find(p => p.id === progId)?.name === 'Other'
+  const otherMissing = isOther && !otherProg.trim()
+
   function submit() {
-    if (!date || !time) return
+    if (!date || !time || otherMissing) return
     const trialAt = `${date}T${time}:00`
     startTransition(async () => {
-      await bookTrial(leadId, trialAt, progId || null, userId)
+      await bookTrial(leadId, trialAt, progId || null, userId, isOther ? otherProg : null)
       onClose()
     })
   }
@@ -139,10 +143,17 @@ function BookingModal({ leadId, userId, programmes, onClose }: BookingModalProps
           <option value="">— select —</option>
           {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {isOther && (
+          <>
+            <label style={{ fontSize: 12, color: C.MUTED, display: 'block', marginBottom: 4 }}>Which programme? *</label>
+            <input value={otherProg} onChange={e => setOtherProg(e.target.value)} placeholder="Programme name"
+              style={{ width: '100%', padding: '8px', border: `1px solid ${C.BORDER}`, fontSize: 14, marginBottom: 20, boxSizing: 'border-box' }} />
+          </>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-          <button onClick={submit} disabled={!date || !time || pending}
-            style={{ flex: 1, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, opacity: (!date || !time) ? 0.5 : 1 }}>
+          <button onClick={submit} disabled={!date || !time || otherMissing || pending}
+            style={{ flex: 1, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, opacity: (!date || !time || otherMissing) ? 0.5 : 1 }}>
             {pending ? 'Booking…' : 'Confirm'}
           </button>
         </div>
@@ -211,16 +222,23 @@ function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes
   const [pending, startTransition] = useTransition()
   const isAdmin = user.role === 'admin' || user.role === 'management'
   const [f, setF] = useState({
-    childFirst: '', childLast: '', dob: '', gender: '', programmeId: '', site: user.site ?? 'coolaroo',
+    childFirst: '', childLast: '', dob: '', gender: '', programmeId: '', otherProgramme: '', site: user.site ?? 'coolaroo',
     source: 'walk-in', referrerName: '', notes: '',
     guardianFirst: '', guardianLast: '', phone: '', email: '', relationship: 'Mother',
   })
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF(p => ({ ...p, [k]: e.target.value }))
 
+  const isOther = programmes.find(p => p.id === f.programmeId)?.name === 'Other'
+  const otherMissing = isOther && !f.otherProgramme.trim()
+
   function submit() {
-    if (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) return
+    if (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || otherMissing) return
+    // Fold the "Other" programme name into the lead notes so it's captured on the timeline
+    const notes = isOther
+      ? `Programme (Other): ${f.otherProgramme.trim()}${f.notes.trim() ? `\n${f.notes.trim()}` : ''}`
+      : (f.notes || null)
     startTransition(async () => {
-      await createLead({ ...f, dob: f.dob || null, gender: f.gender || null, programmeId: f.programmeId || null, referrerName: f.referrerName || null, notes: f.notes || null }, user.id)
+      await createLead({ ...f, dob: f.dob || null, gender: f.gender || null, programmeId: f.programmeId || null, referrerName: f.referrerName || null, notes }, user.id)
       onClose()
     })
   }
@@ -255,6 +273,12 @@ function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes
           <option value="">—</option>
           {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {isOther && (
+          <>
+            <label style={label}>Which programme? *</label>
+            <input value={f.otherProgramme} onChange={set('otherProgramme')} style={inp} placeholder="Programme name" />
+          </>
+        )}
 
         <div style={{ fontSize: 11, fontWeight: 700, color: C.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 18, marginBottom: 8 }}>Guardian</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -292,8 +316,8 @@ function AddLeadModal({ user, programmes, onClose }: { user: AppUser; programmes
 
         <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', border: `1px solid ${C.BORDER}`, background: C.WHITE, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-          <button onClick={submit} disabled={!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || pending}
-            style={{ flex: 2, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, opacity: (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim()) ? 0.5 : 1 }}>
+          <button onClick={submit} disabled={!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || otherMissing || pending}
+            style={{ flex: 2, padding: '10px', background: C.ORANGE, color: C.WHITE, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, opacity: (!f.childFirst.trim() || !f.guardianFirst.trim() || !f.phone.trim() || otherMissing) ? 0.5 : 1 }}>
             {pending ? 'Saving…' : 'Add lead'}
           </button>
         </div>

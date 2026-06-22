@@ -31,7 +31,7 @@ export async function logCallOutcome(leadId: string, outcome: string, userId: st
   revalidate()
 }
 
-export async function bookTrial(leadId: string, trialAt: string, programmeId: string | null, userId: string) {
+export async function bookTrial(leadId: string, trialAt: string, programmeId: string | null, userId: string, otherProgramme?: string | null) {
   const supabase = await createClient()
   const before = await getLead(supabase, leadId)
   const wasNoShow = before?.status === 'noshow'
@@ -45,6 +45,9 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
   await supabase.from('leads').update(updates).eq('id', leadId)
   const trialDate = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })
   await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'status', body: `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${trialDate}` })
+  if (otherProgramme?.trim()) {
+    await supabase.from('activities').insert({ lead_id: leadId, user_id: userId, kind: 'note', body: `Programme (Other): ${otherProgramme.trim()}` })
+  }
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', before, after: { ...before, ...updates } })
   revalidate()
 }

@@ -51,10 +51,33 @@ export async function POST() {
     }
   }
 
+  // Normalise the programme list to the three live options. Deactivate everything,
+  // rename the legacy Kinder Gym in place (keeps its UUID / FK refs), then ensure
+  // the three core programmes exist and are active.
+  await supabase.from('programmes').update({ active: false }).neq('id', '00000000-0000-0000-0000-000000000000')
+  await supabase.from('programmes').update({ name: 'KinderGym', sort: 1, active: true }).eq('name', 'Kinder Gym')
+
+  const coreProgrammes = [
+    { name: 'KinderGym', sort: 1 },
+    { name: 'Principles Development', sort: 2 },
+    { name: 'Other', sort: 99 },
+  ]
+  for (const cp of coreProgrammes) {
+    const { data: existing } = await supabase.from('programmes').select('id').eq('name', cp.name).limit(1)
+    if (existing && existing.length > 0) {
+      await supabase.from('programmes').update({ active: true, sort: cp.sort }).eq('name', cp.name)
+    } else {
+      await supabase.from('programmes').insert({ name: cp.name, sort: cp.sort, active: true })
+    }
+  }
+
+  const { data: activeProgrammes } = await supabase.from('programmes').select('name').eq('active', true).order('sort')
+
   return NextResponse.json({
     ok: true,
     archivedLeads: archivedCount,
     archivedGuardians,
     cutoff,
+    activeProgrammes: (activeProgrammes ?? []).map(p => p.name),
   })
 }

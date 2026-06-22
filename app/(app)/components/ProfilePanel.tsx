@@ -364,12 +364,15 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
     return (p.min_age == null || a >= p.min_age) && (p.max_age == null || a <= p.max_age)
   }) ?? programmes[0]
   const [progId, setProgId] = useState(lead.programme_id ?? suggestedProg?.id ?? '')
-  const ok = date && time
+  const [otherProg, setOtherProg] = useState('')
   const selectedProg = programmes.find(p => p.id === progId)
+  const isOther = selectedProg?.name === 'Other'
+  const ok = date && time && (!isOther || otherProg.trim())
 
   function handleConfirm() {
     if (!ok) return
-    onConfirm({ date, time, programmeId: progId || null, programmeName: selectedProg?.name ?? '' })
+    const programmeName = isOther ? `Other — ${otherProg.trim()}` : (selectedProg?.name ?? '')
+    onConfirm({ date, time, programmeId: progId || null, programmeName })
   }
 
   return (
@@ -386,6 +389,11 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
             {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
+        {isOther && (
+          <label style={lbl}>Which programme?
+            <input value={otherProg} onChange={e => setOtherProg(e.target.value)} placeholder="Programme name" style={inp} />
+          </label>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
           <Quiet onClick={onClose}>Cancel</Quiet>
           <Next onClick={handleConfirm} disabled={!ok}>{ok ? 'Confirm booking' : 'Pick date & time'}</Next>
