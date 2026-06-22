@@ -12,10 +12,10 @@ import {
   markLost,
   sendConfirmation,
   markConfirmationSent,
+  setReminder,
   verifySale,
   logIclassCheck,
   toggleChecklist,
-  logText,
   resendForm,
   markFormReceived,
   sendJotform,
@@ -753,6 +753,10 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
   showSite?: boolean
 }) {
   const [bookingOpen, setBookingOpen] = useState(false)
+  const [reminderOpen, setReminderOpen] = useState(false)
+  const [reminderNote, setReminderNote] = useState('')
+  const [reminderDate, setReminderDate] = useState(() => addDays(new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }), 1))
+  const [reminderTime, setReminderTime] = useState('09:00')
   const [pending, startTransition] = useTransition()
   const guardian = lead.guardians
 
@@ -777,10 +781,44 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <BtnQuiet onClick={() => startTransition(() => logText(lead.id, userId))}>Send text</BtnQuiet>
+          <BtnQuiet onClick={() => { setReminderOpen(v => !v) }}>Set reminder</BtnQuiet>
           <BtnPrimary onClick={() => setBookingOpen(true)}>Re-book</BtnPrimary>
         </div>
       </div>
+      {reminderOpen && (
+        <div style={{ padding: '12px 22px 14px 19px', borderTop: `1px solid ${C.line}`, borderLeft: `3px solid ${C.orange}`, background: '#fffaf7' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Set a reminder</div>
+          <input
+            value={reminderNote} onChange={e => setReminderNote(e.target.value)}
+            placeholder="What needs to be done? (e.g. call to re-book trial)"
+            style={{ ...inp, width: '100%', boxSizing: 'border-box' as const, marginBottom: 8, fontSize: 13 }}
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
+              Date
+              <input type="date" value={reminderDate} min={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' })}
+                onChange={e => setReminderDate(e.target.value)}
+                style={{ ...inp, display: 'block', marginTop: 3 }} />
+            </label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
+              Time
+              <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)}
+                style={{ ...inp, display: 'block', marginTop: 3 }} />
+            </label>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+              <BtnQuiet onClick={() => setReminderOpen(false)}>Cancel</BtnQuiet>
+              <BtnPrimary
+                onClick={() => {
+                  if (!reminderNote.trim() || !reminderDate) return
+                  const iso = new Date(`${reminderDate}T${reminderTime}:00`).toISOString()
+                  startTransition(() => setReminder(lead.id, userId, reminderNote.trim(), iso))
+                  setReminderOpen(false); setReminderNote('')
+                }}
+              >Save reminder</BtnPrimary>
+            </div>
+          </div>
+        </div>
+      )}
       {bookingOpen && (
         <BookingModalWrapper lead={lead} userId={userId} programmes={programmes}
           onClose={() => setBookingOpen(false)} onDone={() => setBookingOpen(false)} />
