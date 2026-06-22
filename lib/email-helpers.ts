@@ -48,12 +48,28 @@ export function buildAddress(site: string) {
     : 'Unit 2/2-10 Reservoir Drive, Coolaroo VIC 3048'
 }
 
-export async function postToZapier(payload: Record<string, unknown>) {
+export type ZapierResult =
+  | { ok: true }
+  | { ok: false; reason: 'no_url' | 'no_recipient' | 'error'; detail?: string }
+
+/**
+ * Post an outbound-email payload to the Zapier webhook that creates the Gmail
+ * draft. Returns a result so callers can record in the lead timeline whether the
+ * draft was actually created — silent failures here were impossible to diagnose.
+ */
+export async function postToZapier(payload: Record<string, unknown>): Promise<ZapierResult> {
   const url = runtimeEnv('ZAPIER_EMAIL_WEBHOOK_URL')
-  if (!url) return
-  await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => null)
+  if (!url) return { ok: false, reason: 'no_url' }
+  if (!payload.to) return { ok: false, reason: 'no_recipient' }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) return { ok: false, reason: 'error', detail: `HTTP ${res.status}` }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, reason: 'error', detail: e instanceof Error ? e.message : 'fetch failed' }
+  }
 }

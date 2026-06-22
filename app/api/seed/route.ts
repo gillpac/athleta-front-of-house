@@ -381,7 +381,9 @@ export async function POST() {
       source: 'website',
       status: 'noshow', contacted: true, last_outcome: 'No-show',
       attempts: 1, rebooks: 1,
-      trial_at: null, confirmation_sent_at: null, form_received: false,
+      // A no-show still has the original trial date — kept so it counts as a
+      // booked trial and shows under Trials → This month / No-shows.
+      trial_at: '2026-06-07T09:00:00+10:00', confirmation_sent_at: '2026-06-06T10:00:00+10:00', form_received: false,
       next_action_at: `${TODAY}T09:00:00+10:00`,
       sold_at: null, sold_by: null, payment_taken: false,
       verified_at: null, verified_by: null,

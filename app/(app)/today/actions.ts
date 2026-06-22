@@ -47,7 +47,9 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
   const dateStr = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
   const timeStr = new Date(trialAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
 
-  // Auto-send booking confirmation email draft to Gmail
+  // Auto-create the booking confirmation email draft in Gmail (via Zapier).
+  // The result is recorded in the timeline so a missing draft is never silent.
+  let emailNote = ''
   try {
     const { data: fullLead } = await admin.from('leads').select('*, guardian:guardians(*)').eq('id', leadId).single()
     if (fullLead) {
@@ -58,16 +60,25 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
       const jotformUrl = buildJotformUrl(fullLead.site, fullLead, guardian)
       const jotformLine = jotformUrl ? `👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>` : ''
       const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0;font-size:14px;">Hi ${guardianFirstName},<br><br>Thanks for booking a trial class with Athleta Gymnastics — we're looking forward to welcoming ${fullLead.child_first}.<br><br><strong>Trial Date:</strong> ${trialDateStr}<br><strong>Time:</strong> ${trialTimeStr}<br><strong>Address:</strong> ${buildAddress(fullLead.site)}<br><br>Before attending, please complete this short form using the link below. It covers medical and emergency details and must be completed prior to the trial.<br><br>${jotformLine}If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
-      await postToZapier({ to: guardian?.email ?? null, subject: `Your trial booking for ${fullLead.child_first}`, html_body: htmlBody, site: fullLead.site, kind: 'confirmation' })
-      // Stamp form_sent_at so the Jotform reminder shows correctly
-      const jotformConfigured = !!(fullLead.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
-      if (jotformConfigured) {
-        await supabase.from('leads').update({ form_sent_at: new Date().toISOString() }).eq('id', leadId)
+      const result = await postToZapier({ to: guardian?.email ?? null, subject: `Your trial booking for ${fullLead.child_first}`, html_body: htmlBody, site: fullLead.site, kind: 'confirmation' })
+      if (result.ok) {
+        emailNote = ' · confirmation draft created in Gmail'
+        // Stamp form_sent_at so the Jotform reminder shows correctly
+        const jotformConfigured = !!(fullLead.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
+        if (jotformConfigured) {
+          await supabase.from('leads').update({ form_sent_at: new Date().toISOString() }).eq('id', leadId)
+        }
+      } else if (result.reason === 'no_recipient') {
+        emailNote = ' · ⚠ no email draft (no email address on file)'
+      } else if (result.reason === 'no_url') {
+        emailNote = ' · ⚠ no email draft (email integration not configured)'
+      } else {
+        emailNote = ' · ⚠ email draft failed to send'
       }
     }
-  } catch { /* non-fatal: email draft failure shouldn't block booking */ }
+  } catch { emailNote = ' · ⚠ email draft failed to send' }
 
-  await insertActivity(leadId, userId, 'status', `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${dateStr} ${timeStr}, ${programmeName}`)
+  await insertActivity(leadId, userId, 'status', `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${dateStr} ${timeStr}, ${programmeName}${emailNote}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', after: { trialAt, programmeName } })
   revalidatePath('/today')
   revalidatePath('/leads')

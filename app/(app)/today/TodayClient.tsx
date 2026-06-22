@@ -1087,11 +1087,18 @@ export default function TodayClient({
   const trialsByTab = {
     today: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === todayStr),
     tomorrow: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === tomorrowStr),
-    this_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= tomorrowStr && trialMelbDate(l.trial_at) <= endOfThisWeekStr),
+    // "This week" runs from today through Saturday — so it includes today's and
+    // tomorrow's trials too (they overlap the Today/Tomorrow tabs by design).
+    this_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= todayStr && trialMelbDate(l.trial_at) <= endOfThisWeekStr),
     next_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= nextWeekStartStr && trialMelbDate(l.trial_at) <= nextWeekEndStr),
-    // "This month" = every trial in the month regardless of day — including no-shows,
-    // which keep their original trial_at.
-    this_month: [...booked, ...noShowsFiltered].filter(l => l.trial_at && trialMelbDate(l.trial_at) >= firstOfMonthStr && trialMelbDate(l.trial_at) <= endOfMonthStr),
+    // "This month" = every trial in the month regardless of day, including no-shows.
+    // No-shows keep their original trial_at; legacy/seed no-shows with no trial_at
+    // are still shown here (they're active trials needing attention this month).
+    this_month: [...booked, ...noShowsFiltered].filter(l =>
+      l.status === 'noshow'
+        ? (!l.trial_at || (trialMelbDate(l.trial_at) >= firstOfMonthStr && trialMelbDate(l.trial_at) <= endOfMonthStr))
+        : (l.trial_at && trialMelbDate(l.trial_at) >= firstOfMonthStr && trialMelbDate(l.trial_at) <= endOfMonthStr)
+    ),
     noshows: noShowsFiltered,
     custom: booked.filter(l => {
       if (!l.trial_at) return false
