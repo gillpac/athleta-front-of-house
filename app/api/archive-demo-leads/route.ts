@@ -1,9 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+// One-time setup key — required so this can't be triggered by accident.
+const SETUP_KEY = 'golive-2026-06-22'
+
+// Browser-friendly trigger: paste the URL with ?key=... into a browser to run.
+export async function GET(req: Request) {
+  const key = new URL(req.url).searchParams.get('key')
+  if (key !== SETUP_KEY) {
+    return NextResponse.json({ error: 'Missing or invalid key' }, { status: 401 })
+  }
+  return runSetup()
+}
+
 // One-time admin action: soft-archive all leads received before the live launch date (2026-06-21)
 // Only callable with SUPABASE_SERVICE_ROLE_KEY — safe to expose as POST endpoint
 export async function POST() {
+  return runSetup()
+}
+
+async function runSetup() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) {
     return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not set' }, { status: 500 })
