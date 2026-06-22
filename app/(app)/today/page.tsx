@@ -45,10 +45,16 @@ export default async function TodayPage() {
 
   const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
 
-  const endOfToday = todayStr + 'T23:59:59'
-  const newLeads = leads.filter(l => l.status === 'new' && (!l.next_action_at || l.next_action_at <= endOfToday))
+  // Compare next_action_at (UTC ISO) against Melbourne date — avoids DST timezone bugs
+  const toMelbDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' })
+  const newLeads = leads.filter(l => {
+    if (l.status !== 'new') return false
+    if (!l.next_action_at) return true
+    return toMelbDate(l.next_action_at) <= todayStr
+  })
   const upcomingNewLeads = leads
-    .filter(l => l.status === 'new' && l.next_action_at && l.next_action_at > endOfToday)
+    .filter(l => l.status === 'new' && l.next_action_at && toMelbDate(l.next_action_at) > todayStr)
     .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&

@@ -809,8 +809,12 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '13px 22px 13px 19px', borderTop: `1px solid ${C.line}`, borderLeft: `3px solid ${C.orange}`, background: '#fffaf7', opacity: pending ? 0.6 : 1 }}>
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, background: C.orange, color: '#fff', borderRadius: 4, padding: '2px 7px', letterSpacing: 0.4 }}>NO-SHOW</span>
+            {lead.trial_at && <span style={{ fontSize: 11.5, color: C.muted }}>trialled {new Date(lead.trial_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</span>}
+          </div>
           <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
             {lead.child_first} {lead.child_last}
             {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
@@ -822,7 +826,6 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
               {guardian.first_name} {guardian.last_name}
             </button>{' '}· {guardian.phone}
           </div>
-          <div style={{ marginTop: 4 }}><Tag tone="red">no-show — reach out &amp; re-book</Tag></div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <BtnQuiet onClick={() => startTransition(() => logText(lead.id, userId))}>Send text</BtnQuiet>
@@ -872,22 +875,25 @@ function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite 
       </div>
       <div>
         {lead.confirmation_sent_at
-          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Email sent ✓</span>
-          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Confirm email sent</BtnPrimary>}
+          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
+          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>}
       </div>
     </div>
   )
 }
 
-// ─── Booked row (future) ──────────────────────────────────────────────────────
-function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
+// ─── Booked row (future + past month view) ────────────────────────────────────
+function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
   userId: string
   programmes: Programme[]
+  activities?: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
   onOpen: () => void
   onOpenParent: () => void
   showSite?: boolean
 }) {
+  const [lossFor, setLossFor] = useState(false)
+  const [enrolOpen, setEnrolOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
   const dateStr = lead.trial_at
@@ -895,48 +901,78 @@ function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
     : '—'
   const progName = programmes.find(p => p.id === lead.programme_id)?.name
   const guardian = lead.guardians
+  const isPast = lead.trial_at ? new Date(lead.trial_at) < new Date() : false
+  const leadActs = (activities ?? []).filter(a => a.lead_id === lead.id)
+  const arrived = leadActs.some(a => a.body === 'Marked arrived ✓')
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{dateStr}</div>
-        <div style={{ fontWeight: 400, fontSize: 12, color: C.muted }}>{timeStr}</div>
-      </div>
-      <div>
-        <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-          {lead.child_first} {lead.child_last}
-          {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
-          {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
-        </button>
-        {progName && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{progName}</div>}
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{dateStr}</div>
+          <div style={{ fontWeight: 400, fontSize: 12, color: C.muted }}>{timeStr}</div>
         </div>
-        {lead.form_received
-          ? <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Jotform ✓</span>
-          : lead.form_sent_at
-            ? <span style={{ fontSize: 12, color: C.muted }}>Jotform pending
-                <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button>
-                <button onClick={() => startTransition(() => markFormReceived(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.muted, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Got form</button>
-              </span>
-            : null}
+        <div>
+          <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {lead.child_first} {lead.child_last}
+            {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
+            {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+          </button>
+          {progName && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{progName}</div>}
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+            {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
+          </div>
+          {lead.form_received
+            ? <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Jotform ✓</span>
+            : lead.form_sent_at
+              ? <span style={{ fontSize: 12, color: C.muted }}>Jotform pending
+                  <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button>
+                  <button onClick={() => startTransition(() => markFormReceived(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12, color: C.muted, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Got form</button>
+                </span>
+              : null}
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 160 }}>
+          {lead.status !== 'booked'
+            ? lead.status === 'won'
+              ? <Tag tone="green" solid>Enrolled</Tag>
+              : lead.status === 'noshow'
+                ? <Tag tone="red" solid>No-show</Tag>
+                : lead.status === 'nurture'
+                  ? <Tag tone="yellow">Nurture</Tag>
+                  : lead.status === 'lost'
+                    ? <Tag tone="grey">Lost</Tag>
+                    : null
+            : isPast
+              ? lossFor
+                ? <LossPicker
+                    onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
+                    onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
+                    onCancel={() => setLossFor(false)}
+                  />
+                : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {arrived
+                        ? <Tag tone="green">Attended ✓</Tag>
+                        : <Tag tone="red">No outcome recorded</Tag>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <BtnSale onClick={() => setEnrolOpen(true)}>Make the sale</BtnSale>
+                      <BtnGhost onClick={() => setLossFor(true)}>Didn&apos;t enrol</BtnGhost>
+                    </div>
+                    {lead.confirmation_sent_at && <div style={{ fontSize: 11, color: C.muted }}>Trial confirmation sent ✓</div>}
+                  </div>
+              : lead.confirmation_sent_at
+                ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
+                : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>}
+        </div>
       </div>
-      <div>
-        {lead.status === 'booked'
-          ? lead.confirmation_sent_at
-            ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Email sent ✓</span>
-            : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Confirm email sent</BtnPrimary>
-          : lead.status === 'won'
-            ? <Tag tone="green" solid>Enrolled</Tag>
-            : lead.status === 'noshow'
-              ? <Tag tone="red" solid>No-show</Tag>
-              : lead.status === 'nurture'
-                ? <Tag tone="yellow">Nurture</Tag>
-                : lead.status === 'lost'
-                  ? <Tag tone="grey">Lost</Tag>
-                  : null}
-      </div>
-    </div>
+      {enrolOpen && (
+        <EnrolModal lead={lead} onClose={() => setEnrolOpen(false)} onConfirm={({ date, slot, payTaken }) => {
+          setEnrolOpen(false)
+          startTransition(() => makeSale(lead.id, date, slot, payTaken, userId))
+        }} />
+      )}
+    </>
   )
 }
 
@@ -1146,10 +1182,11 @@ export default function TodayClient({
   const dashFilled = Math.round((pct / 100) * ARC_TOTAL)
 
   const segtabStyle = (key: string): React.CSSProperties => ({
-    fontFamily: FONT, fontSize: 12.5, color: trialTab === key ? C.ink : C.muted,
+    fontFamily: FONT, fontSize: 12.5,
+    color: trialTab === key ? C.ink : (key === 'noshows' && trialsByTab.noshows.length > 0 ? C.red : C.muted),
     textDecoration: 'none', padding: '5px 11px', borderRadius: 6,
-    background: trialTab === key ? '#f3efe9' : 'none',
-    fontWeight: trialTab === key ? 600 : 400,
+    background: trialTab === key ? '#f3efe9' : (key === 'noshows' && trialsByTab.noshows.length > 0 && trialTab !== 'noshows' ? '#fde8e3' : 'none'),
+    fontWeight: trialTab === key ? 600 : (key === 'noshows' && trialsByTab.noshows.length > 0 ? 600 : 400),
     border: 'none', cursor: 'pointer',
   })
 
@@ -1228,7 +1265,7 @@ export default function TodayClient({
                 ['today', `Today${trialsByTab.today.length > 0 ? ` (${trialsByTab.today.length})` : ''}`],
                 ['tomorrow', `Tomorrow${trialsByTab.tomorrow.length > 0 ? ` (${trialsByTab.tomorrow.length})` : ''}`],
                 ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
-                ['next_week', 'Next week'],
+                ['next_week', `Next week${trialsByTab.next_week.length > 0 ? ` (${trialsByTab.next_week.length})` : ''}`],
                 ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
                 ['noshows', `No-shows${trialsByTab.noshows.length > 0 ? ` (${trialsByTab.noshows.length})` : ''}`],
               ] as [string, string][]).map(([key, label]) => (
@@ -1296,25 +1333,28 @@ export default function TodayClient({
             trialsByTab[trialTab].length === 0
               ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials in this period.</div>
               : trialsByTab[trialTab].map(l => (
-                  <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                  <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+                    activities={trialTab === 'this_month' || trialTab === 'custom' ? todayActivities : undefined}
+                    showSite={isMultiSite}
                     onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
                 ))
           )}
         </Card>
 
-        {/* Sales to process */}
-        {unverifiedSales.length > 0 && (
-          <Card
-            head="Sales to process"
-            sub="Enter in iClassPro, tick each item, then admin verifies"
-            right={<Tag tone="yellow">pending admin</Tag>}
-          >
-            {unverifiedSales.map(l => (
-              <SaleRow key={l.id} lead={l} userId={appUser.id} userRole={appUser.role} showSite={isMultiSite}
-                onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-            ))}
-          </Card>
-        )}
+        {/* Sales to process — always visible */}
+        <Card
+          head="Sales to process"
+          sub="Enter in iClassPro, tick each item, then admin verifies"
+          right={unverifiedSales.length > 0 ? <Tag tone="yellow">{unverifiedSales.length} pending admin</Tag> : undefined}
+        >
+          {unverifiedSales.length === 0
+            ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No sales to process — admin is up to date.</div>
+            : unverifiedSales.map(l => (
+                <SaleRow key={l.id} lead={l} userId={appUser.id} userRole={appUser.role} showSite={isMultiSite}
+                  onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+              ))
+          }
+        </Card>
 
         {/* Follow-ups due */}
         <Card
@@ -1426,7 +1466,12 @@ export default function TodayClient({
           ] as [string, number | null, boolean][]).map(([label, val, warn]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${C.line}` }}>
               <span style={{ fontSize: 13, color: C.body }}>{label}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: warn ? C.orange : C.ink }}>{val ?? '—'}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: warn ? C.orange : C.ink }}>
+                {val ?? '—'}
+                {label === 'Sales this week' && unverifiedSales.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginLeft: 5 }}>+{unverifiedSales.length} pending</span>
+                )}
+              </span>
             </div>
           ))}
         </div>
