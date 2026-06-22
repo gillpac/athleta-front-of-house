@@ -32,6 +32,7 @@ export async function logCallOutcome(leadId: string, outcome: string, userId: st
 
 export async function bookTrial(leadId: string, trialAt: string, programmeId: string | null, programmeName: string, userId: string) {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { data: lead } = await supabase.from('leads').select('status, rebooks').eq('id', leadId).single()
   const wasNoShow = lead?.status === 'noshow'
   await supabase.from('leads').update({
@@ -43,6 +44,27 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
   }).eq('id', leadId)
   const dateStr = new Date(trialAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
   const timeStr = new Date(trialAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
+
+  // Auto-send booking confirmation email draft to Gmail
+  try {
+    const { data: fullLead } = await admin.from('leads').select('*, guardian:guardians(*)').eq('id', leadId).single()
+    if (fullLead) {
+      const guardian = fullLead.guardian as Record<string, string> | null
+      const trialDateStr = new Date(trialAt).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
+      const trialTimeStr = new Date(trialAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
+      const guardianFirstName = guardian?.first_name ?? 'there'
+      const jotformUrl = buildJotformUrl(fullLead.site, fullLead, guardian)
+      const jotformLine = jotformUrl ? `👉 Complete form: <a href="${jotformUrl}" style="color:#000;font-weight:600;text-decoration:underline;">Click here to complete</a><br><br>` : ''
+      const htmlBody = `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Onest',Arial,Helvetica,sans-serif;color:#333333;line-height:1.5;"><tr><td style="padding:0;font-size:14px;">Hi ${guardianFirstName},<br><br>Thanks for booking a trial class with Athleta Gymnastics — we're looking forward to welcoming ${fullLead.child_first}.<br><br><strong>Trial Date:</strong> ${trialDateStr}<br><strong>Time:</strong> ${trialTimeStr}<br><strong>Address:</strong> ${buildAddress(fullLead.site)}<br><br>Before attending, please complete this short form using the link below. It covers medical and emergency details and must be completed prior to the trial.<br><br>${jotformLine}If you have any questions, just reply to this email.<br><br>Kind Regards,</td></tr></table>`
+      await postToZapier({ to: guardian?.email ?? null, subject: `Your trial booking for ${fullLead.child_first}`, html_body: htmlBody, site: fullLead.site, kind: 'confirmation' })
+      // Stamp form_sent_at so the Jotform reminder shows correctly
+      const jotformConfigured = !!(fullLead.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
+      if (jotformConfigured) {
+        await supabase.from('leads').update({ form_sent_at: new Date().toISOString() }).eq('id', leadId)
+      }
+    }
+  } catch { /* non-fatal: email draft failure shouldn't block booking */ }
+
   await insertActivity(leadId, userId, 'status', `Trial ${wasNoShow ? 're-booked' : 'booked'} — ${dateStr} ${timeStr}, ${programmeName}`)
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'book_trial', after: { trialAt, programmeName } })
   revalidatePath('/today')
@@ -160,7 +182,9 @@ export async function sendConfirmation(leadId: string, userId: string) {
     .eq('id', leadId)
     .single()
 
-  if (lead) {
+  const emailAlreadySent = !!lead?.form_sent_at
+
+  if (!emailAlreadySent && lead) {
     const guardian = lead.guardian as Record<string, string> | null
     const trialDateStr = lead.trial_at
       ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
@@ -182,17 +206,21 @@ export async function sendConfirmation(leadId: string, userId: string) {
       site: lead.site,
       kind: 'confirmation',
     })
-  }
 
-  const now = new Date().toISOString()
-  const updates: Record<string, unknown> = { confirmation_sent_at: now }
-  const jotformConfigured = !!(lead?.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
-  if (jotformConfigured) updates.form_sent_at = now
-  await supabase.from('leads').update(updates).eq('id', leadId)
-  const activityMsg = jotformConfigured
-    ? 'Confirmation email sent (Jotform link included)'
-    : 'Confirmation email sent'
-  await insertActivity(leadId, userId, 'comm', activityMsg)
+    const jotformConfigured = !!(lead.site === 'altona_north' ? runtimeEnv('JOTFORM_URL_ALTONA_NORTH') : runtimeEnv('JOTFORM_URL_COOLAROO'))
+    const now = new Date().toISOString()
+    const updates: Record<string, unknown> = { confirmation_sent_at: now }
+    if (jotformConfigured) updates.form_sent_at = now
+    await supabase.from('leads').update(updates).eq('id', leadId)
+    const activityMsg = jotformConfigured
+      ? 'Confirmation email sent (Jotform link included)'
+      : 'Confirmation email sent'
+    await insertActivity(leadId, userId, 'comm', activityMsg)
+  } else {
+    const now = new Date().toISOString()
+    await supabase.from('leads').update({ confirmation_sent_at: now }).eq('id', leadId)
+    await insertActivity(leadId, userId, 'comm', 'Confirmed email sent')
+  }
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'confirmation_sent' })
   revalidatePath('/today')
   revalidatePath('/leads')

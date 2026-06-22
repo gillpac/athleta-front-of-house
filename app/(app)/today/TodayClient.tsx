@@ -215,7 +215,7 @@ function Card({ children, head, sub, right, style }: {
   return (
     <section style={{
       background: C.card, border: `1px solid ${C.line}`, borderRadius: RADIUS,
-      overflow: 'hidden', marginBottom: 18, ...style
+      overflow: 'visible', marginBottom: 18, ...style
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 14px' }}>
         <div>
@@ -424,6 +424,7 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
 }) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [otherNote, setOtherNote] = useState('')
   const age = ageFrom(lead.dob)
   const suggestedProg = programmes.find(p => {
     const a = parseInt(age)
@@ -431,12 +432,14 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
     return (p.min_age == null || a >= p.min_age) && (p.max_age == null || a <= p.max_age)
   }) ?? programmes[0]
   const [progId, setProgId] = useState(lead.programme_id ?? suggestedProg?.id ?? '')
-  const ok = date && time
   const selectedProg = programmes.find(p => p.id === progId)
+  const isOther = selectedProg?.name === 'Other'
+  const ok = date && time && (!isOther || otherNote.trim())
 
   function handleConfirm() {
     if (!ok) return
-    onConfirm({ date, time, programmeId: progId || null, programmeName: selectedProg?.name ?? '' })
+    const programmeName = isOther && otherNote.trim() ? `Other — ${otherNote.trim()}` : (selectedProg?.name ?? '')
+    onConfirm({ date, time, programmeId: progId || null, programmeName })
   }
 
   return (
@@ -448,14 +451,22 @@ function BookingModal({ lead, programmes, onClose, onConfirm }: {
         </div>
         <label style={lbl}>Trial date<input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} /></label>
         <label style={lbl}>Time<input type="time" value={time} onChange={e => setTime(e.target.value)} style={inp} /></label>
-        <label style={lbl}>Programme
+        <label style={lbl}>Program
           <select value={progId} onChange={e => setProgId(e.target.value)} style={inp}>
             {programmes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
+        {isOther && (
+          <label style={lbl}>Describe the program
+            <input value={otherNote} onChange={e => setOtherNote(e.target.value)} style={inp} placeholder="e.g. previous gym experience…" />
+          </label>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
           <BtnQuiet onClick={onClose}>Cancel</BtnQuiet>
-          <BtnPrimary onClick={handleConfirm} disabled={!ok}>{ok ? 'Confirm booking' : 'Pick date & time'}</BtnPrimary>
+          <BtnPrimary onClick={handleConfirm} disabled={!ok}>{ok ? 'Confirm booking & send email draft' : 'Pick date & time'}</BtnPrimary>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, textAlign: 'center' }}>
+          A confirmation email draft will be created in Gmail ready to send.
         </div>
       </div>
     </div>
@@ -649,6 +660,7 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
               {lead.child_first} {lead.child_last}
               {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
               {lead.rebooks > 0 && <Chip>re-booked ×{lead.rebooks}</Chip>}
+              {!lead.contacted && <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, background: '#fde8e3', color: '#bf4a30', borderRadius: 4, padding: '1px 6px', marginLeft: 6, verticalAlign: 'middle', letterSpacing: 0.3 }}>New lead</span>}
             </button>
           </div>
           <div style={{ color: isHot ? '#524b43' : '#8a837a', fontSize: 13, marginTop: 2 }}>
@@ -860,8 +872,8 @@ function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite 
       </div>
       <div>
         {lead.confirmation_sent_at
-          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Confirmed ✓</span>
-          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</BtnPrimary>}
+          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Email sent ✓</span>
+          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Confirm email sent</BtnPrimary>}
       </div>
     </div>
   )
@@ -912,8 +924,8 @@ function BookedRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
       <div>
         {lead.status === 'booked'
           ? lead.confirmation_sent_at
-            ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Confirmed ✓</span>
-            : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Send confirmation</BtnPrimary>
+            ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Email sent ✓</span>
+            : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Confirm email sent</BtnPrimary>
           : lead.status === 'won'
             ? <Tag tone="green" solid>Enrolled</Tag>
             : lead.status === 'noshow'
@@ -935,10 +947,13 @@ function UpcomingRow({ lead, onOpen }: { lead: Lead & { guardians: Guardian }; o
   const dueStr = lead.next_action_at
     ? new Date(lead.next_action_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
     : '—'
+  const dueTime = lead.next_action_at
+    ? new Date(lead.next_action_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+    : null
 
   return (
     <div onClick={onOpen} style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, cursor: 'pointer' }}>
-      <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}</div>
+      <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}{dueTime && <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 400 }}>{dueTime}</div>}</div>
       <div>
         <div style={{ fontWeight: 600, fontSize: 14, color: C.ink }}>{lead.child_first} {lead.child_last}
           {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
@@ -1025,6 +1040,7 @@ interface TodayClientProps {
   userNames: Record<string, string>
   programmes: Programme[]
   todayStr: string
+  weekSalesCount: number
 }
 
 export default function TodayClient({
@@ -1046,6 +1062,7 @@ export default function TodayClient({
   userNames,
   programmes,
   todayStr,
+  weekSalesCount,
 }: TodayClientProps) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [openParentGuardianId, setOpenParentGuardianId] = useState<string | null>(null)
@@ -1161,7 +1178,7 @@ export default function TodayClient({
 
         {/* Leads card */}
         <Card
-          head="Leads"
+          head="Actions due today"
           sub="Call and book a trial — longest waiting at the top"
           right={newLeads.length > 0 ? <CountPill>{newLeads.length} to book</CountPill> : undefined}
         >
@@ -1207,8 +1224,8 @@ export default function TodayClient({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 12px', gap: 12 }}>
             <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               {([
-                ['today', 'Today'],
-                ['tomorrow', 'Tomorrow'],
+                ['today', `Today${trialsByTab.today.length > 0 ? ` (${trialsByTab.today.length})` : ''}`],
+                ['tomorrow', `Tomorrow${trialsByTab.tomorrow.length > 0 ? ` (${trialsByTab.tomorrow.length})` : ''}`],
                 ['this_week', `This week${trialsByTab.this_week.length > 0 ? ` (${trialsByTab.this_week.length})` : ''}`],
                 ['next_week', 'Next week'],
                 ['this_month', `This month${trialsByTab.this_month.length > 0 ? ` (${trialsByTab.this_month.length})` : ''}`],
