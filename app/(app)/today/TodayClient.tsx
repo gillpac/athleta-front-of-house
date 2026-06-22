@@ -6,7 +6,6 @@ import {
   logCallOutcome,
   bookTrial,
   markArrived,
-  undoArrived,
   markNoShow,
   makeSale,
   markDidntEnrol,
@@ -21,6 +20,7 @@ import {
   sendJotform,
 } from './actions'
 import { ProfilePanel } from '../components/ProfilePanel'
+import { melbDate, addDays } from '@/lib/dates'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -713,94 +713,6 @@ function NewRow({ lead, userId, onOpen, onOpenParent, onBooked, programmes, show
   )
 }
 
-// ─── Today trial row ──────────────────────────────────────────────────────────
-function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent, showSite }: {
-  lead: Lead & { guardians: Guardian }
-  userId: string
-  activities: Array<{ lead_id: string; kind: string; body: string; created_at: string }>
-  programmes: Programme[]
-  onOpen: () => void
-  onOpenParent: () => void
-  showSite?: boolean
-}) {
-  const leadActs = activities.filter(a => a.lead_id === lead.id)
-  const sortedActs = [...leadActs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  const lastRelevant = sortedActs.find(a => a.body === 'Marked arrived ✓' || a.body === 'Undid: marked arrived')
-  const arrivedDone = lastRelevant?.body === 'Marked arrived ✓'
-  const [lossFor, setLossFor] = useState(false)
-  const [enrolOpen, setEnrolOpen] = useState(false)
-  const [pending, startTransition] = useTransition()
-  const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
-  const progName = programmes.find(p => p.id === lead.programme_id)?.name
-  const guardian = lead.guardians
-
-  return (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 130px 230px', gap: 16, alignItems: 'center', padding: '16px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
-        <div style={{ fontWeight: 600, color: C.ink, fontSize: 14 }}>{timeStr}</div>
-        <div>
-          <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-            {lead.child_first} {lead.child_last}
-            {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
-            {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
-          </button>
-          {progName && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{progName}</div>}
-          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-            {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
-            <button onClick={onOpenParent} style={{ fontFamily: FONT, fontSize: 12.5, color: C.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-              {guardian.first_name} {guardian.last_name}
-            </button>{' '}· {guardian.phone}
-          </div>
-          <div style={{ marginTop: 4, fontSize: 12.5, color: C.muted }}>
-            {lead.form_received
-              ? <span style={{ color: C.green, fontWeight: 600 }}>Jotform ✓</span>
-              : <>Jotform needed <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12.5, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button></>}
-          </div>
-        </div>
-        {/* Arrived */}
-        <div>
-          {arrivedDone ? (
-            <span onClick={() => startTransition(() => undoArrived(lead.id, userId))} title="Click to undo" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, color: C.green, fontSize: 12.5, fontWeight: 600 }}>
-              <span style={{ width: 16, height: 16, borderRadius: '50%', background: C.greenBg, color: C.green, display: 'grid', placeItems: 'center', fontSize: 10 }}>✓</span>
-              Arrived
-            </span>
-          ) : (
-            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-              <button title="Attended" onClick={() => startTransition(() => markArrived(lead.id, userId))} style={{ width: 30, height: 30, border: `1.5px solid ${C.green}`, borderRadius: 7, background: '#eef6f0', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              </button>
-              <button title="No-show" onClick={() => startTransition(() => markNoShow(lead.id, userId))} style={{ width: 30, height: 30, border: `1.5px solid ${C.red}`, borderRadius: 7, background: '#fde8e3', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.8" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </span>
-          )}
-        </div>
-        {/* Outcome */}
-        <div style={{ textAlign: 'right' }}>
-          {!arrivedDone
-            ? <span style={{ fontSize: 11, fontWeight: 600, color: C.faint, textTransform: 'uppercase', letterSpacing: 0.5 }}>outcome after arrival</span>
-            : lossFor
-              ? <LossPicker
-                  onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
-                  onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
-                  onCancel={() => setLossFor(false)}
-                />
-              : <>
-                  <BtnSale onClick={() => setEnrolOpen(true)}>Make the sale</BtnSale>
-                  <BtnGhost onClick={() => setLossFor(true)}>Didn&apos;t enrol</BtnGhost>
-                </>}
-        </div>
-      </div>
-      {enrolOpen && (
-        <EnrolModal lead={lead} onClose={() => setEnrolOpen(false)} onConfirm={({ date, slot, payTaken }) => {
-          setEnrolOpen(false)
-          startTransition(() => makeSale(lead.id, date, slot, payTaken, userId))
-        }} />
-      )}
-    </>
-  )
-}
-
 // ─── No-show row ──────────────────────────────────────────────────────────────
 function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
   lead: Lead & { guardians: Guardian }
@@ -844,48 +756,6 @@ function NoShowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }:
           onClose={() => setBookingOpen(false)} onDone={() => setBookingOpen(false)} />
       )}
     </>
-  )
-}
-
-// ─── Tomorrow row ─────────────────────────────────────────────────────────────
-function TomorrowRow({ lead, userId, programmes, onOpen, onOpenParent, showSite }: {
-  lead: Lead & { guardians: Guardian }
-  userId: string
-  programmes: Programme[]
-  onOpen: () => void
-  onOpenParent: () => void
-  showSite?: boolean
-}) {
-  const [pending, startTransition] = useTransition()
-  const timeStr = lead.trial_at ? formatTime(lead.trial_at) : '—'
-  const progName = programmes.find(p => p.id === lead.programme_id)?.name
-  const guardian = lead.guardians
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
-      <div style={{ fontWeight: 600, color: C.ink, fontSize: 14 }}>{timeStr}</div>
-      <div>
-        <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-          {lead.child_first} {lead.child_last}
-          {ageFrom(lead.dob) && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{ageFrom(lead.dob)} yrs</span>}
-          {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
-        </button>
-        {progName && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{progName}</div>}
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
-        </div>
-        <div style={{ marginTop: 4, fontSize: 12.5, color: C.muted }}>
-          {lead.form_received
-            ? <span style={{ color: C.green, fontWeight: 600 }}>Jotform ✓</span>
-            : <>Jotform pending <button onClick={() => startTransition(() => resendForm(lead.id, userId))} style={{ fontFamily: FONT, fontSize: 12.5, color: C.orange, fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: 8 }}>Resend</button></>}
-        </div>
-      </div>
-      <div>
-        {lead.confirmation_sent_at
-          ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
-          : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>}
-      </div>
-    </div>
   )
 }
 
@@ -1200,28 +1070,32 @@ export default function TodayClient({
   const isMultiSite = appUser.role === 'admin' || appUser.role === 'management'
   const matchesSite = (l: Lead) => siteFilter === 'all' || l.site === siteFilter
 
-  const tomorrowStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
-  const dayAfterTomStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10) })()
+  const tomorrowStr = addDays(todayStr, 1)
   const dow = new Date(todayStr + 'T12:00:00').getDay()
   const daysToSat = dow === 0 ? 6 : 6 - dow
-  const endOfThisWeekStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat); return d.toISOString().slice(0, 10) })()
-  const nextWeekStartStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 2); return d.toISOString().slice(0, 10) })()
-  const nextWeekEndStr = (() => { const d = new Date(todayStr + 'T12:00:00'); d.setDate(d.getDate() + daysToSat + 7); return d.toISOString().slice(0, 10) })()
+  const endOfThisWeekStr = addDays(todayStr, daysToSat)
+  const nextWeekStartStr = addDays(todayStr, daysToSat + 2)
+  const nextWeekEndStr = addDays(todayStr, daysToSat + 7)
   const firstOfMonthStr = todayStr.slice(0, 8) + '01'
   const endOfMonthStr = (() => { const d = new Date(todayStr.slice(0, 7) + '-01T12:00:00'); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10) })()
 
   const booked = bookedLeads.filter(matchesSite)
   const noShowsFiltered = noShows.filter(matchesSite)
+  // trial_at is a UTC ISO timestamp — bucket by the Melbourne calendar date
+  // (never slice the raw ISO string; see lib/dates.ts).
+  const trialMelbDate = melbDate
   const trialsByTab = {
-    today: booked.filter(l => l.trial_at?.startsWith(todayStr)),
-    tomorrow: booked.filter(l => l.trial_at?.startsWith(tomorrowStr)),
-    this_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= tomorrowStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
-    next_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
-    this_month: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= firstOfMonthStr && l.trial_at.slice(0, 10) <= endOfMonthStr),
+    today: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === todayStr),
+    tomorrow: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) === tomorrowStr),
+    this_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= tomorrowStr && trialMelbDate(l.trial_at) <= endOfThisWeekStr),
+    next_week: booked.filter(l => l.trial_at && trialMelbDate(l.trial_at) >= nextWeekStartStr && trialMelbDate(l.trial_at) <= nextWeekEndStr),
+    // "This month" = every trial in the month regardless of day — including no-shows,
+    // which keep their original trial_at.
+    this_month: [...booked, ...noShowsFiltered].filter(l => l.trial_at && trialMelbDate(l.trial_at) >= firstOfMonthStr && trialMelbDate(l.trial_at) <= endOfMonthStr),
     noshows: noShowsFiltered,
     custom: booked.filter(l => {
       if (!l.trial_at) return false
-      const d = l.trial_at.slice(0, 10)
+      const d = trialMelbDate(l.trial_at)
       if (customFrom && d < customFrom) return false
       if (customTo && d > customTo) return false
       return true
@@ -1258,7 +1132,7 @@ export default function TodayClient({
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
   const month = monthName(todayStr)
   const doneCount = checklistItems.filter(i => localCompleted.has(i.id)).length
-  const thisWeekTrialsCount = bookedLeads.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= todayStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr).length
+  const thisWeekTrialsCount = bookedLeads.filter(l => l.trial_at && melbDate(l.trial_at) >= todayStr && melbDate(l.trial_at) <= endOfThisWeekStr).length
 
   // Rail site toggle selects which target/count to display
   const railTarget = railSite === 'all' ? target : (perSiteTargets[railSite] ?? target)
@@ -1395,15 +1269,6 @@ export default function TodayClient({
           )}
 
           {/* Tab content */}
-          {trialTab === 'today' && (
-            trialsByTab.today.length === 0
-              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials today.</div>
-              : trialsByTab.today.map(l => (
-                  <TodayRow key={l.id} lead={l} userId={appUser.id} activities={todayActivities} programmes={programmes} showSite={isMultiSite}
-                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-                ))
-          )}
-
           {trialTab === 'noshows' && (
             trialsByTab.noshows.length === 0
               ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No no-shows.</div>
@@ -1413,18 +1278,11 @@ export default function TodayClient({
                 ))
           )}
 
-          {trialTab === 'tomorrow' && (
-            trialsByTab.tomorrow.length === 0
-              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials tomorrow.</div>
-              : trialsByTab.tomorrow.map(l => (
-                  <TomorrowRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
-                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-                ))
-          )}
-
-          {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
+          {trialTab !== 'noshows' && (
             trialsByTab[trialTab].length === 0
-              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials in this period.</div>
+              ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>
+                  {trialTab === 'today' ? 'No trials today.' : trialTab === 'tomorrow' ? 'No trials tomorrow.' : 'No trials in this period.'}
+                </div>
               : <>
                   <div style={{ display: 'grid', gridTemplateColumns: BOOKED_COLS, gap: 16, padding: '6px 22px', borderTop: `1px solid ${C.line}` }}>
                     {(['When', 'Child & guardian', 'Attendance', 'Sale outcome'] as const).map((h, i) => (

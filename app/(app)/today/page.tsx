@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { AppUser, Lead, Target, BlockoutDay, ChecklistItem, ChecklistCompletion, Programme, Guardian } from '@/types'
 import TodayClient from './TodayClient'
+import { melbDate, melbToday } from '@/lib/dates'
 
 export default async function TodayPage() {
   const supabase = await createClient()
@@ -18,8 +19,8 @@ export default async function TodayPage() {
   if (!appUser) redirect('/login?error=no_profile')
 
   // Use Melbourne local date (not the server's UTC date) so "today" matches
-  // what reception sees on the clock. en-CA formats as YYYY-MM-DD.
-  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' })
+  // what reception sees on the clock. See lib/dates.ts.
+  const todayStr = melbToday()
   const [yr, mo] = todayStr.split('-').map(Number)
 
   // First and last day of current month (Melbourne)
@@ -46,8 +47,7 @@ export default async function TodayPage() {
   const leads = (allLeads ?? []) as (Lead & { guardians: Guardian })[]
 
   // Compare next_action_at (UTC ISO) against Melbourne date — avoids DST timezone bugs
-  const toMelbDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' })
+  const toMelbDate = melbDate
   const newLeads = leads.filter(l => {
     if (l.status !== 'new') return false
     if (!l.next_action_at) return true
@@ -59,7 +59,7 @@ export default async function TodayPage() {
   const todayTrials = leads.filter(l =>
     l.status === 'booked' &&
     l.trial_at != null &&
-    l.trial_at.startsWith(todayStr)
+    toMelbDate(l.trial_at) === todayStr
   )
   const bookedLeads = leads
     .filter(l => l.status === 'booked')
