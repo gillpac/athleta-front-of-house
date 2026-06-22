@@ -164,6 +164,8 @@ export async function POST(req: NextRequest) {
       rebooks: 0,
       payment_taken: false,
       form_received: false,
+      // Always stamp arrival time on the server — never trust a date from the form.
+      received_at: new Date().toISOString(),
       next_action_at: new Date().toISOString(),
       enquiry_raw: body,
     }
