@@ -22,7 +22,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
 
   // Leads this month — bounded to the selected month at BOTH ends. Without the
   // upper bound, picking May returned May-onwards (all later months too).
-  let leadsQ = supabase.from('leads').select('id, status, source, utm_source, utm_medium, utm_campaign, sold_at, sold_by, verified_at, payment_taken, received_at, contacted, attempts, site')
+  let leadsQ = supabase.from('leads').select('id, status, source, utm_source, utm_medium, utm_campaign, sold_at, sold_by, verified_at, payment_taken, received_at, trial_at, contacted, attempts, site')
     .gte('received_at', monthStart)
     .lte('received_at', monthEnd + 'T23:59:59.999')
     .is('archived_at', null)

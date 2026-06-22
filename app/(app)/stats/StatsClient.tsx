@@ -337,16 +337,16 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
   const projectedSales = Math.round(pace * opDays.total)
   const neededPerDay = opDays.remaining > 0 ? ((netGoal - netGrowth) / opDays.remaining).toFixed(1) : '0'
 
-  // Stage counts
-  const newLeads = leads.filter(l => l.status === 'new')
-  const bookedLeads = leads.filter(l => l.status === 'booked')
-  const noShows = leads.filter(l => l.status === 'noshow')
-  const nurtureLeads = leads.filter(l => l.status === 'nurture')
-
-  // First response time (new leads that have been contacted)
-  const contactedLeads = leads.filter(l => l.contacted && l.received_at)
-  // We don't have first_contact_at, so approximate from activities — skip for now, show attempted count
-  const contactRate = leads.length > 0 ? Math.round((leads.filter(l => l.contacted).length / leads.length) * 100) : 0
+  // Funnel cohort = leads that arrived this month, excluding dead/lost leads so
+  // this matches the Leads page "All + this month" count.
+  const cohort = leads.filter(l => l.status !== 'lost')
+  const totalLeads = cohort.length
+  const nowMs = Date.now()
+  const trialsBooked = cohort.filter(l => l.trial_at).length
+  // Attended = trial date has passed and they weren't a no-show
+  const trialsAttended = cohort.filter(l => l.trial_at && l.status !== 'noshow' && new Date(l.trial_at).getTime() < nowMs).length
+  const joined = cohort.filter(l => l.status === 'won').length
+  const pctOfLeads = (n: number) => totalLeads > 0 ? Math.round((n / totalLeads) * 100) : 0
 
   // My sales
   const mySales = leads.filter(l => l.status === 'won' && l.sold_by === user.id)
@@ -462,11 +462,10 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
 
           <Section title="This month at a glance">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <StatCard label="New leads" value={newLeads.length} />
-              <StatCard label="Booked" value={bookedLeads.length} />
-              <StatCard label="No-shows" value={noShows.length} accent={noShows.length > 0 ? C.RED : undefined} />
-              <StatCard label="Nurture" value={nurtureLeads.length} />
-              <StatCard label="Contact rate" value={`${contactRate}%`} sub={`${leads.filter(l => l.contacted).length} of ${leads.length} leads`} />
+              <StatCard label="Leads" value={totalLeads} sub="leads received this month" />
+              <StatCard label="Trials booked" value={trialsBooked} sub={`${pctOfLeads(trialsBooked)}% of leads`} />
+              <StatCard label="Trials attended" value={trialsAttended} sub={`${pctOfLeads(trialsAttended)}% of leads`} />
+              <StatCard label="Joined" value={joined} sub={`${pctOfLeads(joined)}% of leads`} accent={joined > 0 ? C.GREEN : undefined} />
             </div>
           </Section>
 

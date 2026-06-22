@@ -385,15 +385,18 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
       if (statusFilter === 'new_contacted' && !(l.status === 'new' && l.contacted)) return false
       if (statusFilter !== 'all' && !statusFilter.startsWith('new_') && l.status !== statusFilter) return false
       if (siteFilter !== 'all' && l.site !== siteFilter) return false
-      // Date basis varies by status so each filter means what the user expects:
-      // - Booked: trial_at (when the trial is) so "Booked → This month" = trials
-      //   in this month, matching the dashboard Trials widget
-      // - Enrolled: sold_at (when the sale closed) so "Enrolled → This month" =
-      //   sales made this month, matching the dashboard sales count
-      // - Everything else: received_at (when the lead arrived)
+      // Date basis follows the STATUS FILTER being viewed (not each lead's own
+      // status), so each view means exactly what the user expects and reconciles
+      // with the matching metric elsewhere:
+      // - Booked view: trial_at  → "Booked + this month" = trials this month
+      //   (matches the dashboard Trials widget)
+      // - Enrolled view: sold_at → "Enrolled + this month" = sales this month
+      //   (matches the dashboard / reports sales count)
+      // - All / New / No-show / Nurture: received_at → leads that ARRIVED this
+      //   month (matches the Reports "leads this month" count)
       const dateBasis =
-        l.status === 'booked' && l.trial_at ? l.trial_at :
-        l.status === 'won' && l.sold_at ? l.sold_at :
+        statusFilter === 'booked' && l.trial_at ? l.trial_at :
+        statusFilter === 'won' && l.sold_at ? l.sold_at :
         l.received_at
       if (!isInDateRange(dateBasis, dateFilter, customFrom, customTo)) return false
       if (!q) return true
