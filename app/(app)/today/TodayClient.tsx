@@ -49,6 +49,8 @@ const C = {
 }
 const FONT = "'Nunito Sans', -apple-system, system-ui, sans-serif"
 const RADIUS = 8
+// Shared column template for the booked-trial rows + their header
+const BOOKED_COLS = '92px 1.4fr 150px 200px'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const waitLabel = (mins: number) =>
@@ -905,9 +907,57 @@ function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent,
   const leadActs = (activities ?? []).filter(a => a.lead_id === lead.id)
   const arrived = leadActs.some(a => a.body === 'Marked arrived ✓')
 
+  // ── Attendance cell ──
+  let attendance: React.ReactNode
+  if (lead.status === 'won' || arrived) {
+    attendance = <Tag tone="green">Attended ✓</Tag>
+  } else if (lead.status === 'noshow') {
+    attendance = <Tag tone="red">Didn&apos;t attend</Tag>
+  } else if (lead.status === 'booked' && isPast) {
+    attendance = (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <BtnQuiet onClick={() => startTransition(() => markArrived(lead.id, userId))}>Attended</BtnQuiet>
+        <BtnQuiet onClick={() => startTransition(() => markNoShow(lead.id, userId))}>No-show</BtnQuiet>
+      </div>
+    )
+  } else if (lead.status === 'booked') {
+    attendance = <span style={{ fontSize: 12.5, color: C.faint }}>Upcoming</span>
+  } else {
+    attendance = arrived ? <Tag tone="green">Attended ✓</Tag> : <span style={{ fontSize: 12.5, color: C.faint }}>—</span>
+  }
+
+  // ── Sale outcome cell ──
+  let outcome: React.ReactNode
+  if (lead.status === 'won') {
+    outcome = <Tag tone="green" solid>Sale ✓</Tag>
+  } else if (lead.status === 'nurture' || lead.status === 'lost') {
+    outcome = <Tag tone="grey">No sale</Tag>
+  } else if (lead.status === 'noshow') {
+    outcome = <span style={{ fontSize: 12.5, color: C.faint }}>—</span>
+  } else if (isPast) {
+    // booked + past: decide the sale once attendance is known
+    outcome = lossFor
+      ? <LossPicker
+          onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
+          onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
+          onCancel={() => setLossFor(false)}
+        />
+      : arrived
+        ? <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <BtnSale onClick={() => setEnrolOpen(true)}>Sale</BtnSale>
+            <BtnGhost onClick={() => setLossFor(true)}>No sale</BtnGhost>
+          </div>
+        : <span style={{ fontSize: 12, color: C.faint }}>Mark attendance first</span>
+  } else {
+    // future booked trial — confirmation status
+    outcome = lead.confirmation_sent_at
+      ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
+      : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>
+  }
+
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: BOOKED_COLS, gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, opacity: pending ? 0.6 : 1 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{dateStr}</div>
           <div style={{ fontWeight: 400, fontSize: 12, color: C.muted }}>{timeStr}</div>
@@ -931,40 +981,8 @@ function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent,
                 </span>
               : null}
         </div>
-        <div style={{ textAlign: 'right', minWidth: 160 }}>
-          {lead.status !== 'booked'
-            ? lead.status === 'won'
-              ? <Tag tone="green" solid>Enrolled</Tag>
-              : lead.status === 'noshow'
-                ? <Tag tone="red" solid>No-show</Tag>
-                : lead.status === 'nurture'
-                  ? <Tag tone="yellow">Nurture</Tag>
-                  : lead.status === 'lost'
-                    ? <Tag tone="grey">Lost</Tag>
-                    : null
-            : isPast
-              ? lossFor
-                ? <LossPicker
-                    onNurture={(reason, date) => { setLossFor(false); startTransition(() => markDidntEnrol(lead.id, reason, userId, date)) }}
-                    onLost={reason => { setLossFor(false); startTransition(() => markLost(lead.id, reason, userId)) }}
-                    onCancel={() => setLossFor(false)}
-                  />
-                : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      {arrived
-                        ? <Tag tone="green">Attended ✓</Tag>
-                        : <Tag tone="red">No outcome recorded</Tag>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <BtnSale onClick={() => setEnrolOpen(true)}>Make the sale</BtnSale>
-                      <BtnGhost onClick={() => setLossFor(true)}>Didn&apos;t enrol</BtnGhost>
-                    </div>
-                    {lead.confirmation_sent_at && <div style={{ fontSize: 11, color: C.muted }}>Trial confirmation sent ✓</div>}
-                  </div>
-              : lead.confirmation_sent_at
-                ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12.5 }}>Trial confirmation sent ✓</span>
-                : <BtnPrimary onClick={() => startTransition(() => sendConfirmation(lead.id, userId))}>Trial confirmation sent</BtnPrimary>}
-        </div>
+        <div>{attendance}</div>
+        <div style={{ textAlign: 'right' }}>{outcome}</div>
       </div>
       {enrolOpen && (
         <EnrolModal lead={lead} onClose={() => setEnrolOpen(false)} onConfirm={({ date, slot, payTaken }) => {
@@ -976,10 +994,21 @@ function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent,
   )
 }
 
-// ─── Upcoming row ─────────────────────────────────────────────────────────────
-function UpcomingRow({ lead, onOpen }: { lead: Lead & { guardians: Guardian }; onOpen: () => void }) {
+// ─── Upcoming row (follow-ups due — new-lead chases + no-show re-books) ────────
+function UpcomingRow({ lead, userId, programmes, showSite, onOpen, onOpenParent }: {
+  lead: Lead & { guardians: Guardian }
+  userId: string
+  programmes: Programme[]
+  showSite?: boolean
+  onOpen: () => void
+  onOpenParent: () => void
+}) {
+  const [callFor, setCallFor] = useState(false)
+  const [bookingOpen, setBookingOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
   const age = ageFrom(lead.dob)
   const guardian = lead.guardians
+  const isNoShow = lead.status === 'noshow'
   const dueStr = lead.next_action_at
     ? new Date(lead.next_action_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
     : '—'
@@ -987,23 +1016,63 @@ function UpcomingRow({ lead, onOpen }: { lead: Lead & { guardians: Guardian }; o
     ? new Date(lead.next_action_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
     : null
 
+  function handleCallOutcome(outcome: string, followUpAt?: string) {
+    setCallFor(false)
+    if (outcome === '__open_profile__') { onOpen(); return }
+    if (outcome === 'Spoke — booking now') {
+      startTransition(async () => { await logCallOutcome(lead.id, outcome, userId) })
+      setBookingOpen(true)
+      return
+    }
+    startTransition(() => logCallOutcome(lead.id, outcome, userId, followUpAt))
+  }
+
+  const td: React.CSSProperties = { padding: '13px 22px', borderTop: `1px solid ${C.line}`, verticalAlign: 'middle' }
+
   return (
-    <div onClick={onOpen} style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 16, alignItems: 'center', padding: '13px 22px', borderTop: `1px solid ${C.line}`, cursor: 'pointer' }}>
-      <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}{dueTime && <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 400 }}>{dueTime}</div>}</div>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: C.ink }}>{lead.child_first} {lead.child_last}
-          {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
-        </div>
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
-          {(lead.relationship ?? 'parent').toLowerCase()} · {guardian.first_name} {guardian.last_name} · {guardian.phone}
-        </div>
-      </div>
-      <div>
-        {lead.last_outcome
-          ? <Tag tone="yellow">{lead.last_outcome}</Tag>
-          : <Tag tone="red">Not contacted</Tag>}
-      </div>
-    </div>
+    <>
+      <tr style={{ opacity: pending ? 0.6 : 1, ...(isNoShow ? { background: '#fffaf7' } : {}) }}>
+        <td style={{ ...td, padding: '13px 16px 13px 22px', ...(isNoShow ? { boxShadow: `inset 3px 0 0 ${C.orange}` } : {}) }}>
+          <div style={{ fontWeight: 600, fontSize: 12.5, color: C.ink }}>{dueStr}</div>
+          {dueTime && <div style={{ fontSize: 11.5, color: C.muted }}>{dueTime}</div>}
+        </td>
+        <td style={td}>
+          <button onClick={onOpen} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14, color: C.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {lead.child_first} {lead.child_last}
+            {age && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12.5, marginLeft: 5 }}>{age} yrs</span>}
+            {showSite && <Chip>{lead.site === 'coolaroo' ? 'Coolaroo' : 'Altona North'}</Chip>}
+          </button>
+          <div style={{ color: '#524b43', fontSize: 13, marginTop: 2 }}>
+            {(lead.relationship ?? 'parent').toLowerCase()} ·{' '}
+            <button onClick={onOpenParent} style={{ fontFamily: FONT, fontSize: 13, color: '#524b43', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+              {guardian.first_name} {guardian.last_name}
+            </button>{' '}· {guardian.phone}
+          </div>
+        </td>
+        <td style={td}>
+          {isNoShow
+            ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, background: C.orange, color: '#fff', borderRadius: 4, padding: '2px 7px', letterSpacing: 0.4, alignSelf: 'flex-start' }}>TRIAL · NO-SHOW</span>
+              </span>
+            : lead.last_outcome
+              ? <Tag tone="yellow">{lead.last_outcome}</Tag>
+              : <Tag tone="red">Not contacted</Tag>}
+        </td>
+        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
+          {isNoShow
+            ? <BtnPrimary onClick={() => setBookingOpen(true)}>Re-book</BtnPrimary>
+            : <>
+                <BtnQuiet onClick={() => setCallFor(v => !v)}>Call</BtnQuiet>
+                <BtnGhost onClick={() => setBookingOpen(true)}>Book</BtnGhost>
+                {callFor && <CallMenu onPick={handleCallOutcome} onClose={() => setCallFor(false)} />}
+              </>}
+        </td>
+      </tr>
+      {bookingOpen && (
+        <BookingModalWrapper lead={lead} userId={userId} programmes={programmes}
+          onClose={() => setBookingOpen(false)} onDone={() => setBookingOpen(false)} />
+      )}
+    </>
   )
 }
 
@@ -1077,6 +1146,7 @@ interface TodayClientProps {
   programmes: Programme[]
   todayStr: string
   weekSalesCount: number
+  weekVerifiedCount?: number
 }
 
 export default function TodayClient({
@@ -1099,6 +1169,7 @@ export default function TodayClient({
   programmes,
   todayStr,
   weekSalesCount,
+  weekVerifiedCount = 0,
 }: TodayClientProps) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [openParentGuardianId, setOpenParentGuardianId] = useState<string | null>(null)
@@ -1143,6 +1214,11 @@ export default function TodayClient({
   const newCallNow = newLeads.filter(l => !l.contacted || !l.next_action_at)
   const newScheduled = newLeads.filter(l => l.contacted && l.next_action_at).sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
   const newLeadsSorted = [...newCallNow, ...newScheduled]
+
+  // Follow-ups due = scheduled new-lead chases + every no-show needing a re-book.
+  // No-shows also stay in the Trials → No-shows tab; here they prompt the next action.
+  const followUps = [...upcomingNewLeads, ...noShows]
+    .sort((a, b) => (a.next_action_at ?? '').localeCompare(b.next_action_at ?? ''))
 
   const allLeads = [...newLeads, ...bookedLeads, ...noShows, ...unverifiedSales, ...upcomingNewLeads]
   const allLeadsMap = new Map(allLeads.map(l => [l.id, l]))
@@ -1332,12 +1408,19 @@ export default function TodayClient({
           {trialTab !== 'today' && trialTab !== 'tomorrow' && trialTab !== 'noshows' && (
             trialsByTab[trialTab].length === 0
               ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>No trials in this period.</div>
-              : trialsByTab[trialTab].map(l => (
-                  <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
-                    activities={trialTab === 'this_month' || trialTab === 'custom' ? todayActivities : undefined}
-                    showSite={isMultiSite}
-                    onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
-                ))
+              : <>
+                  <div style={{ display: 'grid', gridTemplateColumns: BOOKED_COLS, gap: 16, padding: '6px 22px', borderTop: `1px solid ${C.line}` }}>
+                    {(['When', 'Child & guardian', 'Attendance', 'Sale outcome'] as const).map((h, i) => (
+                      <div key={h} style={{ fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: i === 3 ? 'right' : 'left' }}>{h}</div>
+                    ))}
+                  </div>
+                  {trialsByTab[trialTab].map(l => (
+                    <BookedRow key={l.id} lead={l} userId={appUser.id} programmes={programmes}
+                      activities={todayActivities}
+                      showSite={isMultiSite}
+                      onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                  ))}
+                </>
           )}
         </Card>
 
@@ -1359,12 +1442,29 @@ export default function TodayClient({
         {/* Follow-ups due */}
         <Card
           head="Follow-ups due"
-          sub="Scheduled chase list"
-          right={`${upcomingNewLeads.length} scheduled`}
+          sub="Who to chase next, and when"
+          right={`${followUps.length} scheduled`}
         >
-          {upcomingNewLeads.length === 0
-            ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>Nothing scheduled. When you log a call outcome, set a follow-up time and it appears here.</div>
-            : upcomingNewLeads.map(l => <UpcomingRow key={l.id} lead={l} onOpen={() => setOpenLeadId(l.id)} />)
+          {followUps.length === 0
+            ? <div style={{ padding: '18px 22px 22px', color: C.muted, fontSize: 13, borderTop: `1px solid ${C.line}` }}>Nothing scheduled. When you log a call outcome or mark a no-show, the next follow-up appears here.</div>
+            : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 110, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 16px 6px 22px', borderBottom: `1px solid ${C.line}` }}>Follow up</th>
+                    <th style={{ fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Child &amp; guardian</th>
+                    <th style={{ width: 150, fontSize: 10.5, letterSpacing: '0.7px', textTransform: 'uppercase', color: C.faint, fontWeight: 600, textAlign: 'left', padding: '6px 22px', borderBottom: `1px solid ${C.line}` }}>Last action</th>
+                    <th style={{ width: 190, borderBottom: `1px solid ${C.line}` }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {followUps.map(l => (
+                    <UpcomingRow key={l.id} lead={l} userId={appUser.id} programmes={programmes} showSite={isMultiSite}
+                      onOpen={() => setOpenLeadId(l.id)} onOpenParent={() => setOpenParentGuardianId(l.guardians.id)} />
+                  ))}
+                </tbody>
+              </table>
+            )
           }
         </Card>
 
@@ -1468,8 +1568,10 @@ export default function TodayClient({
               <span style={{ fontSize: 13, color: C.body }}>{label}</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: warn ? C.orange : C.ink }}>
                 {val ?? '—'}
-                {label === 'Sales this week' && unverifiedSales.length > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginLeft: 5 }}>+{unverifiedSales.length} pending</span>
+                {label === 'Sales this week' && weekSalesCount > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: weekVerifiedCount < weekSalesCount ? C.yellow : C.green, marginLeft: 5 }}>
+                    {weekVerifiedCount}/{weekSalesCount} verified
+                  </span>
                 )}
               </span>
             </div>

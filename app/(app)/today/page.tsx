@@ -126,16 +126,18 @@ export default async function TodayPage() {
     d.setDate(d.getDate() - daysBack)
     return d.toISOString().split('T')[0]
   })()
+  // Notified sales this week (status won) — updates immediately when a sale is
+  // logged, before admin verification. Verified count shown alongside for clarity.
   let weekSalesQuery = supabase
     .from('leads')
-    .select('id')
+    .select('id, verified_at')
     .eq('status', 'won')
-    .not('verified_at', 'is', null)
     .gte('sold_at', weekStart + 'T00:00:00.000Z')
     .is('archived_at', null)
   if (siteFilter) weekSalesQuery = weekSalesQuery.eq('site', siteFilter)
   const { data: weekSalesData } = await weekSalesQuery
   const weekSalesCount = weekSalesData?.length ?? 0
+  const weekVerifiedCount = (weekSalesData ?? []).filter(s => s.verified_at != null).length
 
   // Blockout days for month
   let blockoutQuery = supabase
@@ -222,6 +224,7 @@ export default async function TodayPage() {
       programmes={(programmes ?? []) as Programme[]}
       todayStr={todayStr}
       weekSalesCount={weekSalesCount}
+      weekVerifiedCount={weekVerifiedCount}
     />
   )
 }

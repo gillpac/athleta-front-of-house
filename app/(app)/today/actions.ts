@@ -24,8 +24,10 @@ export async function logCallOutcome(leadId: string, outcome: string, userId: st
   const followUpStr = followUpAt
     ? ` — follow up ${new Date(followUpAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })}`
     : ''
-  await insertActivity(leadId, userId, 'comm', `Called — ${outcome.toLowerCase()}${followUpStr}`)
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'call_outcome', after: { outcome, followUpAt } })
+  await Promise.all([
+    insertActivity(leadId, userId, 'comm', `Called — ${outcome.toLowerCase()}${followUpStr}`),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'call_outcome', after: { outcome, followUpAt } }),
+  ])
   revalidatePath('/today')
   revalidatePath('/leads')
 }
@@ -72,27 +74,35 @@ export async function bookTrial(leadId: string, trialAt: string, programmeId: st
 }
 
 export async function markArrived(leadId: string, userId: string) {
-  await insertActivity(leadId, userId, 'status', 'Marked arrived ✓')
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_arrived' })
+  await Promise.all([
+    insertActivity(leadId, userId, 'status', 'Marked arrived ✓'),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'mark_arrived' }),
+  ])
   revalidatePath('/today')
 }
 
 export async function undoArrived(leadId: string, userId: string) {
-  await insertActivity(leadId, userId, 'undo', 'Undid: marked arrived')
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'undo_arrived' })
+  await Promise.all([
+    insertActivity(leadId, userId, 'undo', 'Undid: marked arrived'),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'undo_arrived' }),
+  ])
   revalidatePath('/today')
 }
 
 export async function markNoShow(leadId: string, userId: string) {
   const supabase = await createClient()
   const nextAction = new Date(); nextAction.setDate(nextAction.getDate() + 2)
+  // Keep trial_at so the original booked trial date is retained (counts as a
+  // booked trial) and the lead can be re-booked from the follow-ups list.
   await supabase.from('leads').update({
     status: 'noshow',
-    trial_at: null,
     next_action_at: nextAction.toISOString(),
   }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'status', 'Marked no-show')
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'no_show' })
+  const followAU = nextAction.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
+  await Promise.all([
+    insertActivity(leadId, userId, 'status', `Marked no-show — re-book follow-up ${followAU}`),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'no_show' }),
+  ])
   revalidatePath('/today')
   revalidatePath('/leads')
 }
@@ -110,8 +120,10 @@ export async function makeSale(leadId: string, firstClassDate: string, firstClas
   }).eq('id', leadId)
   const [yr, mo, dy] = firstClassDate.split('-')
   const firstClassAU = `${dy}/${mo}/${yr}`
-  await insertActivity(leadId, userId, 'status', `SALE 🎉 enrolled — first class ${firstClassAU}, ${firstClass}${paymentTaken ? '. Rego & insurance paid' : ''}. Enter in iClassPro`)
-  await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'sale', after: { firstClassDate, firstClass, paymentTaken } })
+  await Promise.all([
+    insertActivity(leadId, userId, 'status', `SALE 🎉 enrolled — first class ${firstClassAU}, ${firstClass}${paymentTaken ? '. Rego & insurance paid' : ''}. Enter in iClassPro`),
+    logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'sale', after: { firstClassDate, firstClass, paymentTaken } }),
+  ])
   revalidatePath('/today')
   revalidatePath('/leads')
 }
