@@ -31,7 +31,10 @@ export async function setSaveOutcome(
 ) {
   const supabase = await createClient()
   const { data: before } = await supabase.from('cancellations').select('*').eq('id', id).single()
-  const updates = { outcome, save_outcome: saveOutcome, stage: 'processed' as CancelStage }
+  // Recording the outcome of a save conversation must NOT advance the cancellation
+  // into the iClassPro-processed / verified stages — those are deliberate later steps
+  // (scope rule 8: departures only count once admin-verified). Keep it at save_attempt.
+  const updates = { outcome, save_outcome: saveOutcome, stage: 'save_attempt' as CancelStage }
   await supabase.from('cancellations').update(updates).eq('id', id)
   await logAudit({ entity: 'cancellations', entity_id: id, user_id: userId, action: 'save_outcome', before, after: { ...before, ...updates } })
   revalidate()
