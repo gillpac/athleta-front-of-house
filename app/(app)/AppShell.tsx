@@ -97,6 +97,21 @@ export default function AppShell({
           />
         </div>
 
+        {/* Add lead shortcut */}
+        <Link
+          href="/leads?add=1"
+          title="Add a new lead"
+          style={{
+            display: 'grid', placeItems: 'center',
+            width: 36, height: 36, borderRadius: 8,
+            background: C.orange, color: '#fff',
+            textDecoration: 'none', flexShrink: 0,
+            fontSize: 22, fontWeight: 400, lineHeight: 1,
+          }}
+        >
+          +
+        </Link>
+
         {/* User */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14, flex: 'none' }}>
           <div style={{ textAlign: 'right' }}>

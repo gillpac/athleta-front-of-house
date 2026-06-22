@@ -13,6 +13,7 @@ import {
   markLost,
   sendConfirmation,
   verifySale,
+  logIclassCheck,
   toggleChecklist,
   logText,
   resendForm,
@@ -765,8 +766,12 @@ function TodayRow({ lead, userId, activities, programmes, onOpen, onOpenParent, 
             </span>
           ) : (
             <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-              <BtnQuiet onClick={() => startTransition(() => markArrived(lead.id, userId))}>Arrived</BtnQuiet>
-              <BtnQuiet onClick={() => startTransition(() => markNoShow(lead.id, userId))}>No-show</BtnQuiet>
+              <button title="Attended" onClick={() => startTransition(() => markArrived(lead.id, userId))} style={{ width: 30, height: 30, border: `1.5px solid ${C.green}`, borderRadius: 7, background: '#eef6f0', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              </button>
+              <button title="No-show" onClick={() => startTransition(() => markNoShow(lead.id, userId))} style={{ width: 30, height: 30, border: `1.5px solid ${C.red}`, borderRadius: 7, background: '#fde8e3', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.8" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
             </span>
           )}
         </div>
@@ -915,9 +920,21 @@ function BookedRow({ lead, userId, programmes, activities, onOpen, onOpenParent,
     attendance = <Tag tone="red">Didn&apos;t attend</Tag>
   } else if (lead.status === 'booked' && isPast) {
     attendance = (
-      <div style={{ display: 'flex', gap: 6 }}>
-        <BtnQuiet onClick={() => startTransition(() => markArrived(lead.id, userId))}>Attended</BtnQuiet>
-        <BtnQuiet onClick={() => startTransition(() => markNoShow(lead.id, userId))}>No-show</BtnQuiet>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <button
+          title="Attended"
+          onClick={() => startTransition(() => markArrived(lead.id, userId))}
+          style={{ width: 32, height: 32, border: `1.5px solid ${C.green}`, borderRadius: 7, background: '#eef6f0', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+        </button>
+        <button
+          title="No-show"
+          onClick={() => startTransition(() => markNoShow(lead.id, userId))}
+          style={{ width: 32, height: 32, border: `1.5px solid ${C.red}`, borderRadius: 7, background: '#fde8e3', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.8" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
       </div>
     )
   } else if (lead.status === 'booked') {
@@ -1111,7 +1128,7 @@ function SaleRow({ lead, userId, userRole, onOpen, onOpenParent, showSite }: {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
         {([['classEnrolled', 'Class enrolled'], ['regoIns', 'Rego & insurance paid'], ['payment', 'Payment details set up']] as [keyof typeof iclassChecks, string][]).map(([key, label]) => (
           <label key={key} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12.5, fontWeight: 600, color: C.body, cursor: 'pointer' }}>
-            <input type="checkbox" checked={iclassChecks[key]} onChange={() => setIclassChecks(c => ({ ...c, [key]: !c[key] }))} style={{ accentColor: C.green }} />
+            <input type="checkbox" checked={iclassChecks[key]} onChange={() => { const next = !iclassChecks[key]; setIclassChecks(c => ({ ...c, [key]: next })); startTransition(() => logIclassCheck(lead.id, userId, label, next)) }} style={{ accentColor: C.green }} />
             {label}
           </label>
         ))}
@@ -1198,7 +1215,7 @@ export default function TodayClient({
   const trialsByTab = {
     today: booked.filter(l => l.trial_at?.startsWith(todayStr)),
     tomorrow: booked.filter(l => l.trial_at?.startsWith(tomorrowStr)),
-    this_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= dayAfterTomStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
+    this_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= tomorrowStr && l.trial_at.slice(0, 10) <= endOfThisWeekStr),
     next_week: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= nextWeekStartStr && l.trial_at.slice(0, 10) <= nextWeekEndStr),
     this_month: booked.filter(l => l.trial_at && l.trial_at.slice(0, 10) >= firstOfMonthStr && l.trial_at.slice(0, 10) <= endOfMonthStr),
     noshows: noShowsFiltered,
@@ -1542,7 +1559,10 @@ export default function TodayClient({
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '7px 0' }}>
               <span style={{ fontSize: 13, color: C.body }}>Sales</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: C.green }}>{salesGoal > 0 ? `+${salesGoal}` : '—'}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.green }}>
+                {railActual > 0 ? `+${railActual}` : '—'}
+                {salesGoal > 0 && <span style={{ fontSize: 11, fontWeight: 500, color: C.faint, marginLeft: 4 }}>/ {salesGoal} goal</span>}
+              </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '7px 0' }}>
               <span style={{ fontSize: 13, color: C.body }}>Cancellations</span>

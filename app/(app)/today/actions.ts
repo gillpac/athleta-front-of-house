@@ -91,6 +91,7 @@ export async function undoArrived(leadId: string, userId: string) {
 
 export async function markNoShow(leadId: string, userId: string) {
   const supabase = await createClient()
+  const { data: lead } = await supabase.from('leads').select('trial_at').eq('id', leadId).single()
   const nextAction = new Date(); nextAction.setDate(nextAction.getDate() + 2)
   // Keep trial_at so the original booked trial date is retained (counts as a
   // booked trial) and the lead can be re-booked from the follow-ups list.
@@ -99,8 +100,15 @@ export async function markNoShow(leadId: string, userId: string) {
     next_action_at: nextAction.toISOString(),
   }).eq('id', leadId)
   const followAU = nextAction.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
+  const trialDateStr = lead?.trial_at
+    ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Melbourne' })
+    : null
+  const trialTimeStr = lead?.trial_at
+    ? new Date(lead.trial_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' }).toLowerCase()
+    : null
+  const trialNote = trialDateStr ? ` (trial was ${trialDateStr} ${trialTimeStr})` : ''
   await Promise.all([
-    insertActivity(leadId, userId, 'status', `Marked no-show — re-book follow-up ${followAU}`),
+    insertActivity(leadId, userId, 'status', `Marked no-show${trialNote} — re-book follow-up ${followAU}`),
     logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'no_show' }),
   ])
   revalidatePath('/today')
@@ -194,9 +202,7 @@ export async function sendConfirmation(leadId: string, userId: string) {
     .eq('id', leadId)
     .single()
 
-  const emailAlreadySent = !!lead?.form_sent_at
-
-  if (!emailAlreadySent && lead) {
+  if (lead) {
     const guardian = lead.guardian as Record<string, string> | null
     const trialDateStr = lead.trial_at
       ? new Date(lead.trial_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Melbourne' })
@@ -225,23 +231,24 @@ export async function sendConfirmation(leadId: string, userId: string) {
     if (jotformConfigured) updates.form_sent_at = now
     await supabase.from('leads').update(updates).eq('id', leadId)
     const activityMsg = jotformConfigured
-      ? 'Confirmation email sent (Jotform link included)'
-      : 'Confirmation email sent'
+      ? 'Trial confirmation sent (Jotform link included)'
+      : 'Trial confirmation sent'
     await insertActivity(leadId, userId, 'comm', activityMsg)
-  } else {
-    const now = new Date().toISOString()
-    await supabase.from('leads').update({ confirmation_sent_at: now }).eq('id', leadId)
-    await insertActivity(leadId, userId, 'comm', 'Confirmed email sent')
   }
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'confirmation_sent' })
   revalidatePath('/today')
   revalidatePath('/leads')
 }
 
+export async function logIclassCheck(leadId: string, userId: string, item: string, checked: boolean) {
+  await insertActivity(leadId, userId, 'note', checked ? `iClassPro: ${item} ✓` : `iClassPro: ${item} (unticked)`)
+  revalidatePath('/today')
+}
+
 export async function verifySale(leadId: string, userId: string) {
   const supabase = await createClient()
   await supabase.from('leads').update({ verified_at: new Date().toISOString(), verified_by: userId }).eq('id', leadId)
-  await insertActivity(leadId, userId, 'verify', 'Admin verified the sale ✓')
+  await insertActivity(leadId, userId, 'verify', 'iClassPro entry verified — sale confirmed ✓')
   await logAudit({ entity: 'leads', entity_id: leadId, user_id: userId, action: 'verify_sale' })
   revalidatePath('/today')
   revalidatePath('/leads')

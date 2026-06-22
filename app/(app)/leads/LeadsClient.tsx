@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { AppUser, Lead, Guardian, Activity, Programme } from '@/types'
 import { createLead, bookTrial, makeSale } from './actions'
 import { ProfilePanel } from '../components/ProfilePanel'
@@ -354,6 +355,10 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
   const [customTo, setCustomTo] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('add') === '1') setShowAddModal(true)
+  }, [searchParams])
 
   const guardianMap = useMemo(() => {
     const m: Record<string, Guardian> = {}
