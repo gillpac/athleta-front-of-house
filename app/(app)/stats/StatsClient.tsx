@@ -365,7 +365,7 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
     channelCounts[channel] = (channelCounts[channel] ?? 0) + 1
     const utm = l.utm_source
       ? `${l.utm_source}${l.utm_medium ? ` / ${l.utm_medium}` : ''}`
-      : 'Direct / no campaign'
+      : 'Direct / Unknown' // no UTM tags on the lead
     utmCounts[utm] = (utmCounts[utm] ?? 0) + 1
   }
   const sortedChannels = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])
