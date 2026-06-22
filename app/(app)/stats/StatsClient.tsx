@@ -311,6 +311,17 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
     router.push(`?month=${next}`)
   }
 
+  // Month options for the dropdown: 12 past months + current
+  const monthOptions: string[] = []
+  {
+    const now = new Date()
+    for (let i = 0; i >= -12; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+      monthOptions.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`)
+    }
+  }
+  const currentMonthStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01` })()
+
   const opDays = calcOpDaysLeft(todayStr, blockoutDays)
 
   // Core metrics
@@ -341,13 +352,24 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
   const mySales = leads.filter(l => l.status === 'won' && l.sold_by === user.id)
   const myVerified = mySales.filter(l => l.verified_at)
 
-  // Source breakdown (last 90 days)
-  const sourceCounts: Record<string, number> = {}
+  // Source breakdown (last 90 days). Two distinct dimensions — kept separate so
+  // they don't look like double-counting:
+  //  1. Channel (source) = how they reached us (website form, walk-in, referral…)
+  //  2. Attribution (utm_source) = the marketing source for those that have one;
+  //     leads with no UTM are "Direct / no campaign". A facebook/google lead
+  //     still arrived via the website — the UTM just tells us what drove it.
+  const channelCounts: Record<string, number> = {}
+  const utmCounts: Record<string, number> = {}
   for (const l of sourceLeads) {
-    const key = l.utm_source ? `${l.utm_source}${l.utm_medium ? ` / ${l.utm_medium}` : ''}` : (l.source || 'Unknown')
-    sourceCounts[key] = (sourceCounts[key] ?? 0) + 1
+    const channel = (l.source || 'Unknown')
+    channelCounts[channel] = (channelCounts[channel] ?? 0) + 1
+    const utm = l.utm_source
+      ? `${l.utm_source}${l.utm_medium ? ` / ${l.utm_medium}` : ''}`
+      : 'Direct / no campaign'
+    utmCounts[utm] = (utmCounts[utm] ?? 0) + 1
   }
-  const sortedSources = Object.entries(sourceCounts).sort((a, b) => b[1] - a[1])
+  const sortedChannels = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])
+  const sortedUtm = Object.entries(utmCounts).sort((a, b) => b[1] - a[1])
   const totalSourceLeads = sourceLeads.length
 
   // Staff sales leaderboard
@@ -362,15 +384,24 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
 
   return (
     <div style={{ maxWidth: 800 }}>
-      {/* Month navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <button onClick={() => navigateMonth(-1)}
-          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+      {/* Month selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <button onClick={() => navigateMonth(-1)} title="Previous month"
+          style={{ padding: '7px 12px', fontSize: 15, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1, borderRadius: 6 }}>
           ←
         </button>
-        <span style={{ fontSize: 15, fontWeight: 700, minWidth: 160, textAlign: 'center' }}>{monthLabel(monthStart)}</span>
-        <button onClick={() => navigateMonth(1)}
-          style={{ padding: '6px 14px', fontSize: 16, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1 }}>
+        <select
+          value={monthStart}
+          onChange={e => router.push(`?month=${e.target.value}`)}
+          style={{ padding: '8px 12px', border: `1px solid ${C.BORDER}`, fontSize: 14, fontWeight: 700, cursor: 'pointer', borderRadius: 6, fontFamily: FONT, color: C.INK, minWidth: 180 }}
+        >
+          {/* Ensure the selected month is always present, even outside the 13-month window */}
+          {(monthOptions.includes(monthStart) ? monthOptions : [monthStart, ...monthOptions]).map(m => (
+            <option key={m} value={m}>{monthLabel(m)}{m === currentMonthStr ? ' (current)' : ''}</option>
+          ))}
+        </select>
+        <button onClick={() => navigateMonth(1)} title="Next month"
+          style={{ padding: '7px 12px', fontSize: 15, background: C.WHITE, border: `1px solid ${C.BORDER}`, cursor: 'pointer', lineHeight: 1, borderRadius: 6 }}>
           →
         </button>
       </div>
@@ -478,18 +509,42 @@ export default function StatsClient({ user, leads: allLeads, cancellations: allC
 
       {tab === 'sources' && (
         <>
-          <Section title={`Lead sources — last 90 days (${totalSourceLeads} total)`}>
+          <p style={{ fontSize: 13, color: C.MUTED, marginBottom: 20, lineHeight: 1.5, maxWidth: 620 }}>
+            Every lead is counted <strong>once</strong> in each list below — the two lists are different
+            views of the same {totalSourceLeads} leads, not added together. <strong>Channel</strong> is how they
+            reached us; <strong>Attribution</strong> is the marketing source we know about (from UTM tags).
+            A “facebook” or “google” lead still arrived through the website — the UTM just tells us what drove it.
+          </p>
+
+          <Section title={`Channel — how they reached us · last 90 days (${totalSourceLeads} total)`}>
             <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}` }}>
-              {sortedSources.length === 0 && (
+              {sortedChannels.length === 0 && (
                 <div style={{ padding: 24, textAlign: 'center', color: C.MUTED, fontSize: 13 }}>No lead data yet</div>
               )}
-              {sortedSources.map(([source, count], i) => (
-                <div key={source} style={{ padding: '10px 16px', borderBottom: i < sortedSources.length - 1 ? `1px solid ${C.BORDER}` : 'none' }}>
+              {sortedChannels.map(([source, count], i) => (
+                <div key={source} style={{ padding: '10px 16px', borderBottom: i < sortedChannels.length - 1 ? `1px solid ${C.BORDER}` : 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{source}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{source}</span>
                     <span style={{ fontSize: 13, color: C.MUTED }}>{count} ({totalSourceLeads > 0 ? Math.round((count / totalSourceLeads) * 100) : 0}%)</span>
                   </div>
-                  <Bar value={count} max={sortedSources[0][1]} color={C.ORANGE} />
+                  <Bar value={count} max={sortedChannels[0][1]} color={C.ORANGE} />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section title={`Attribution — marketing source (UTM) · last 90 days (${totalSourceLeads} total)`}>
+            <div style={{ background: C.WHITE, border: `1px solid ${C.BORDER}` }}>
+              {sortedUtm.length === 0 && (
+                <div style={{ padding: 24, textAlign: 'center', color: C.MUTED, fontSize: 13 }}>No lead data yet</div>
+              )}
+              {sortedUtm.map(([source, count], i) => (
+                <div key={source} style={{ padding: '10px 16px', borderBottom: i < sortedUtm.length - 1 ? `1px solid ${C.BORDER}` : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{source}</span>
+                    <span style={{ fontSize: 13, color: C.MUTED }}>{count} ({totalSourceLeads > 0 ? Math.round((count / totalSourceLeads) * 100) : 0}%)</span>
+                  </div>
+                  <Bar value={count} max={sortedUtm[0][1]} color={C.ORANGE} />
                 </div>
               ))}
             </div>

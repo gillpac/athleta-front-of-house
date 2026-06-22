@@ -437,7 +437,14 @@ export default function LeadsClient({ user, leads, guardians, activities, progra
           {PRE_TRIAL_FILTERS.map(f => (
             <button key={f.key} onClick={() => setStatusFilter(f.key)} style={filterBtn(statusFilter === f.key)}>{f.label}</button>
           ))}
-          <span style={{ marginLeft: 'auto', fontSize: 12.5, color: C.MUTED }}>{filtered.length} lead{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 12.5, color: C.MUTED }}>
+            {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+            {statusFilter === 'won' && filtered.length > 0 && (() => {
+              const verified = filtered.filter(l => l.verified_at).length
+              const pending = filtered.length - verified
+              return <span style={{ marginLeft: 6 }}>· <span style={{ color: C.GREEN, fontWeight: 700 }}>{verified} verified</span>{pending > 0 && <> · <span style={{ color: C.ORANGE, fontWeight: 700 }}>{pending} pending</span></>}</span>
+            })()}
+          </span>
           <button onClick={() => setShowAddModal(true)} style={{ ...filterBtn(true), marginLeft: 8 }}>+ Add lead</button>
         </div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>

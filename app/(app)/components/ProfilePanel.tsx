@@ -797,6 +797,8 @@ export function ProfilePanel({
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px', fontFamily: FONT }}>
             <ProfileSection title="Child">
+              <InfoRow label="First name" value={lead.child_first || '—'} />
+              <InfoRow label="Surname" value={lead.child_last || '—'} />
               <InfoRow label="Site" value={lead.site === 'altona_north' ? 'Altona North' : 'Coolaroo'} />
               <InfoRow label="Date of birth" value={lead.dob ? `${formatDate(lead.dob)} (${age} yrs)` : '—'} />
               {lead.gender && <InfoRow label="Gender" value={lead.gender} />}

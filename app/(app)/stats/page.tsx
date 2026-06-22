@@ -20,9 +20,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const monthStart = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-01`
   const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Leads this month
+  // Leads this month — bounded to the selected month at BOTH ends. Without the
+  // upper bound, picking May returned May-onwards (all later months too).
   let leadsQ = supabase.from('leads').select('id, status, source, utm_source, utm_medium, utm_campaign, sold_at, sold_by, verified_at, payment_taken, received_at, contacted, attempts, site')
     .gte('received_at', monthStart)
+    .lte('received_at', monthEnd + 'T23:59:59.999')
     .is('archived_at', null)
   if (siteFilter) leadsQ = leadsQ.eq('site', siteFilter)
   const { data: leadsRaw } = await leadsQ
